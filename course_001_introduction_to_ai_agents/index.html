@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course 1: Introduction to AI Agents</title>
+    <link rel="stylesheet" href="../shared/course-styles.css">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="back-btn">← Back to Courses</a>
+        <h2>Course 1: Introduction to AI Agents</h2>
+        <button class="complete-btn" onclick="markCourseComplete()">Mark Complete ✓</button>
+    </nav>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="course-info">
+                <h3>Course 1</h3>
+                <p class="level-badge level-beginner">BEGINNER</p>
+                <p class="duration">⏱️ 2h</p>
+            </div>
+            
+            <div class="toc">
+                <h4>Table of Contents</h4>
+                <ul id="tocList"></ul>
+            </div>
+
+            <div class="progress-section">
+                <h4>Your Progress</h4>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="sectionProgress">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <main class="content" id="courseContent">
+            
+                <h2>What is an AI Agent?</h2>
+                <p>An AI agent is an autonomous entity that perceives its environment through sensors and acts upon it through actuators to achieve specific goals.</p>
+                
+                <h3>Key Components</h3>
+                <ul>
+                    <li><strong>Perception:</strong> Ability to sense and understand the environment</li>
+                    <li><strong>Reasoning:</strong> Processing information to make decisions</li>
+                    <li><strong>Action:</strong> Executing decisions in the environment</li>
+                    <li><strong>Learning:</strong> Improving performance over time</li>
+                </ul>
+                
+                <h3>Agent Architecture</h3>
+                <div class="info-box">
+                    <strong>Simple Reflex Agent:</strong> Acts based on current perception only<br>
+                    <strong>Model-Based Agent:</strong> Maintains internal state of the world<br>
+                    <strong>Goal-Based Agent:</strong> Acts to achieve specific goals<br>
+                    <strong>Utility-Based Agent:</strong> Maximizes expected utility
+                </div>
+                
+                <h2>Types of AI Agents</h2>
+                <h3>1. Reactive Agents</h3>
+                <p>Respond directly to environmental stimuli without internal state.</p>
+                
+                <h3>2. Deliberative Agents</h3>
+                <p>Maintain internal models and plan actions to achieve goals.</p>
+                
+                <h3>3. Hybrid Agents</h3>
+                <p>Combine reactive and deliberative capabilities for optimal performance.</p>
+                
+                <h2>Agent Properties</h2>
+                <ul>
+                    <li><strong>Autonomy:</strong> Operates without direct human intervention</li>
+                    <li><strong>Reactivity:</strong> Responds to environmental changes</li>
+                    <li><strong>Proactivity:</strong> Takes initiative to achieve goals</li>
+                    <li><strong>Social Ability:</strong> Interacts with other agents</li>
+                </ul>
+            
+        </main>
+
+        <aside class="demo-panel">
+            <h3>🚀 Interactive Demo</h3>
+            <div id="demoControls"></div>
+            <div id="demoOutput"></div>
+            <div id="demoVisuals"></div>
+        </aside>
+    </div>
+
+    <script src="../shared/course-utils.js"></script>
+    <script src="course.js"></script>
+</body>
+</html>

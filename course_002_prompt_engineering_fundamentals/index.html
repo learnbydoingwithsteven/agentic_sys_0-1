@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course 2: Prompt Engineering Fundamentals</title>
+    <link rel="stylesheet" href="../shared/course-styles.css">
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="../index.html" class="back-btn">← Back to Courses</a>
+        <h2>Course 2: Prompt Engineering Fundamentals</h2>
+        <button class="complete-btn" onclick="markCourseComplete()">Mark Complete ✓</button>
+    </nav>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="course-info">
+                <h3>Course 2</h3>
+                <p class="level-badge level-beginner">BEGINNER</p>
+                <p class="duration">⏱️ 2h</p>
+            </div>
+            
+            <div class="toc">
+                <h4>Table of Contents</h4>
+                <ul id="tocList"></ul>
+            </div>
+
+            <div class="progress-section">
+                <h4>Your Progress</h4>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="sectionProgress">0%</div>
+                </div>
+            </div>
+        </div>
+
+        <main class="content" id="courseContent">
+            
+                <h2>What is Prompt Engineering?</h2>
+                <p>Prompt engineering is the art and science of crafting effective instructions for Large Language Models (LLMs) to generate desired outputs.</p>
+                
+                <h2>Core Principles</h2>
+                <h3>1. Clarity and Specificity</h3>
+                <p>Be explicit about what you want. Vague prompts lead to unpredictable results.</p>
+                <div class="code-block">
+Bad: "Write about dogs"
+Good: "Write a 200-word informative paragraph about Golden Retrievers, focusing on their temperament and suitability as family pets."
+                </div>
+                
+                <h3>2. Context Provision</h3>
+                <p>Provide relevant background information to guide the model.</p>
+                
+                <h3>3. Format Specification</h3>
+                <p>Clearly define the desired output format (JSON, bullet points, essay, etc.)</p>
+                
+                <h2>Advanced Techniques</h2>
+                <h3>Few-Shot Learning</h3>
+                <p>Provide examples of input-output pairs to guide the model's behavior.</p>
+                <div class="code-block">
+Example 1:
+Input: "The movie was fantastic!"
+Output: Positive
+
+Example 2:
+Input: "I hated every minute of it."
+Output: Negative
+
+Now classify: "It was okay, nothing special."
+                </div>
+                
+                <h3>Chain-of-Thought (CoT)</h3>
+                <p>Encourage step-by-step reasoning by asking the model to "think through" problems.</p>
+                <div class="code-block">
+"Let's solve this step by step:
+1. First, identify the key information
+2. Then, apply the relevant formula
+3. Finally, calculate the result"
+                </div>
+                
+                <h3>Role Assignment</h3>
+                <p>Assign a specific role or persona to the model for better context.</p>
+                <div class="code-block">
+"You are an expert Python developer with 10 years of experience. Explain list comprehensions to a beginner."
+                </div>
+                
+                <h2>Best Practices</h2>
+                <ul>
+                    <li>Start simple, then iterate</li>
+                    <li>Use delimiters to separate sections</li>
+                    <li>Specify constraints (length, tone, style)</li>
+                    <li>Test with edge cases</li>
+                    <li>Version control your prompts</li>
+                </ul>
+            
+        </main>
+
+        <aside class="demo-panel">
+            <h3>🚀 Interactive Demo</h3>
+            <div id="demoControls"></div>
+            <div id="demoOutput"></div>
+            <div id="demoVisuals"></div>
+        </aside>
+    </div>
+
+    <script src="../shared/course-utils.js"></script>
+    <script src="course.js"></script>
+</body>
+</html>
