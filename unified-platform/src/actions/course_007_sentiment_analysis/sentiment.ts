@@ -1,56 +1,73 @@
 'use server'
 
-type SentimentResult = {
-    score: number;
-    label: string;
-    emotions: string[];
+import { ChatOllama } from "@langchain/ollama";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { getOllamaModels } from "@/actions/course_004_state_management/chat";
+
+export type SentimentResult = {
+    polarity: 'positive' | 'negative' | 'neutral';
+    score: number; // -1 to 1
+    emotion: 'joy' | 'anger' | 'sadness' | 'fear' | 'surprise' | 'neutral';
+    aspects: Array<{ target: string; sentiment: 'positive' | 'negative' | 'neutral' }>;
+    explanation: string;
+};
+
+async function getModel() {
+    const models = await getOllamaModels();
+    const modelName = models.length > 0 ? models[0] : "llama3.2";
+
+    return new ChatOllama({
+        baseUrl: "http://127.0.0.1:11434",
+        model: modelName,
+        temperature: 0.1, // Low temp for consistent analysis
+        format: "json", // Request JSON for structured parsing
+    });
 }
 
-async function getOllamaModelName(): Promise<string> {
-    try {
-        const res = await fetch('http://127.0.0.1:11434/api/tags');
-        if (!res.ok) return 'simulation';
-        const data = await res.json();
-        return data.models?.[0]?.name || 'simulation';
-    } catch {
-        return 'simulation';
-    }
-}
+export async function analyzeSentiment(text: string): Promise<SentimentResult> {
+    const llm = await getModel();
 
-export async function analyzeSentimentAction(text: string): Promise<SentimentResult> {
-    const model = await getOllamaModelName();
+    const promptTemplate = `
+    You are an expert Sentiment Analysis Agent. Analyze the following text deeply.
+    
+    Return a JSON object with the following fields:
+    - "polarity": "positive", "negative", or "neutral"
+    - "score": A number between -1.0 (very negative) and 1.0 (very positive).
+    - "emotion": One of ["joy", "anger", "sadness", "fear", "surprise", "neutral"] that best matches the tone.
+    - "aspects": An array of objects, each having "target" (the noun being discussed) and "sentiment" (positive/negative/neutral). Extract key aspects if present.
+    - "explanation": A brief 1-sentence explanation of why these metrics were chosen.
 
-    if (model === 'simulation') {
-        await new Promise(r => setTimeout(r, 800));
-        const lower = text.toLowerCase();
-        let score = 0;
-        let label = 'Neutral';
-        let emotions = ['calm'];
+    Text to Analyze: "{text}"
 
-        if (lower.includes('good') || lower.includes('love') || lower.includes('happy') || lower.includes('great')) {
-            score = 0.8;
-            label = 'Positive';
-            emotions = ['joy', 'excitement'];
-        } else if (lower.includes('bad') || lower.includes('hate') || lower.includes('sad') || lower.includes('terrible')) {
-            score = -0.8;
-            label = 'Negative';
-            emotions = ['anger', 'sadness'];
-        }
-
-        return { score, label, emotions };
-    }
+    JSON Output:
+    `;
 
     try {
-        const prompt = `Analyze sentiment of: "${text}". Return ONLY valid JSON matching this structure: { "score": <number between -1.0 and 1.0>, "label": "Positive"|"Negative"|"Neutral", "emotions": ["emotion1", "emotion2"] }`;
+        const prompt = PromptTemplate.fromTemplate(promptTemplate);
+        const chain = prompt.pipe(llm).pipe(new StringOutputParser());
+        const jsonStr = await chain.invoke({ text });
 
-        const res = await fetch('http://127.0.0.1:11434/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model, prompt, format: "json", stream: false })
-        });
-        const data = await res.json();
-        return JSON.parse(data.response);
-    } catch {
-        return { score: 0, label: 'Error', emotions: [] };
+        // Parse JSON safely
+        const parsed = JSON.parse(jsonStr.trim());
+
+        return {
+            polarity: parsed.polarity || 'neutral',
+            score: parsed.score || 0,
+            emotion: parsed.emotion || 'neutral',
+            aspects: parsed.aspects || [],
+            explanation: parsed.explanation || "No explanation provided."
+        };
+
+    } catch (error) {
+        console.error("Sentiment Analysis Error:", error);
+        // Fallback result in case of failure
+        return {
+            polarity: 'neutral',
+            score: 0,
+            emotion: 'neutral',
+            aspects: [],
+            explanation: "Failed to analyze sentiment. Ensure Ollama is running."
+        };
     }
 }
