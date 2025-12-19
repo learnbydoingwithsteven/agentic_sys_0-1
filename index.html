@@ -275,9 +275,14 @@
                 <button class="filter-btn" data-level="master">Master (81-100)</button>
             </div>
             <input type="text" class="search-box" id="searchBox" placeholder="Search courses...">
+            <div style="margin-top: 15px; display: flex; align-items: center; gap: 12px;">
+                <button class="filter-btn" id="runTestsBtn">Run Tests Across Courses</button>
+                <span id="testSummary" style="color: #333; font-weight: 600;"></span>
+            </div>
         </div>
 
         <div class="courses-grid" id="coursesGrid"></div>
+        <div class="courses-grid" id="testResults"></div>
     </div>
 
     <script src="courses-data.js"></script>

@@ -78,58 +78,96 @@ function createMetricCard(label, value) {
 function createBarChart(elementId, labels, data, title) {
     const ctx = document.getElementById(elementId);
     if (!ctx) return;
-    
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: title,
-                data: data,
-                backgroundColor: 'rgba(102, 126, 234, 0.7)',
-                borderColor: 'rgba(102, 126, 234, 1)',
-                borderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
+    if (typeof Chart !== 'undefined') {
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: title,
+                    data: data,
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    borderWidth: 2
+                }]
             },
-            scales: {
-                y: { beginAtZero: true }
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
             }
-        }
-    });
+        });
+        return;
+    }
+    const c = ctx.getContext('2d');
+    if (!c) return;
+    const w = ctx.width || 350;
+    const h = ctx.height || 200;
+    c.clearRect(0,0,w,h);
+    const pad = 20;
+    const innerW = w - pad * 2;
+    const innerH = h - pad * 2;
+    const max = Math.max(...data, 1);
+    const barW = innerW / data.length * 0.8;
+    for (let i = 0; i < data.length; i++) {
+        const x = pad + i * (innerW / data.length) + (innerW / data.length - barW) / 2;
+        const y = pad + innerH - (data[i] / max) * innerH;
+        const bh = (data[i] / max) * innerH;
+        c.fillStyle = 'rgba(102,126,234,0.7)';
+        c.fillRect(x, y, barW, bh);
+    }
 }
 
 // Create line chart
 function createLineChart(elementId, labels, data, title) {
     const ctx = document.getElementById(elementId);
     if (!ctx) return;
-    
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: title,
-                data: data,
-                borderColor: 'rgba(102, 126, 234, 1)',
-                backgroundColor: 'rgba(102, 126, 234, 0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false }
+    if (typeof Chart !== 'undefined') {
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: title,
+                    data: data,
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                }
             }
-        }
-    });
+        });
+        return;
+    }
+    const c = ctx.getContext('2d');
+    if (!c) return;
+    const w = ctx.width || 350;
+    const h = ctx.height || 200;
+    c.clearRect(0,0,w,h);
+    const pad = 20;
+    const innerW = w - pad * 2;
+    const innerH = h - pad * 2;
+    const max = Math.max(...data, 1);
+    c.strokeStyle = 'rgba(102,126,234,1)';
+    c.beginPath();
+    for (let i = 0; i < data.length; i++) {
+        const x = pad + (i / Math.max(data.length - 1, 1)) * innerW;
+        const y = pad + innerH - (data[i] / max) * innerH;
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+    }
+    c.stroke();
 }
 
 // Create plotly chart
