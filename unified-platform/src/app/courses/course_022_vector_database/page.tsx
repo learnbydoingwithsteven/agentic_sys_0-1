@@ -49,7 +49,7 @@ export default function CoursePage() {
                   </div>
                   <div>
                     <h4 className="font-bold text-sm">Semantic Retrieval</h4>
-                    <p className="text-xs text-zinc-500">Query: "Tech issues" -> Finds: "Server outage reports"</p>
+                    <p className="text-xs text-zinc-500">Query: "Tech issues" → Finds: "Server outage reports"</p>
                   </div>
                 </div>
                 <div className="w-px h-8 bg-zinc-200 dark:bg-zinc-800 ml-6" />

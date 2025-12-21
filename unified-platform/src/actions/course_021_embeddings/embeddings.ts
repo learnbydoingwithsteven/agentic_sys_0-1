@@ -68,8 +68,9 @@ export async function generateEmbeddingsBatch(
 
 /**
  * Calculate cosine similarity between two vectors
+ * Internal helper function, not exported as Server Action
  */
-export function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
+function calculateCosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
         throw new Error("Vectors must have the same length");
     }

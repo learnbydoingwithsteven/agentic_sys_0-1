@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Database,
@@ -15,7 +15,10 @@ import {
     BookOpen,
     CheckCircle2,
     XCircle,
-    BrainCircuit
+    BrainCircuit,
+    GripVertical,
+    Maximize2,
+    Minimize2
 } from 'lucide-react';
 import {
     addDocumentsToStore,
@@ -43,6 +46,12 @@ export function VectorDBLab() {
     const [isSearching, setIsSearching] = useState(false);
     const [result, setResult] = useState<RagResult | null>(null);
 
+    // UI State: Adjustable Boxes
+    const [expandedContexts, setExpandedContexts] = useState<number[]>([]);
+    const [splitRatio, setSplitRatio] = useState(0.5);
+    const [isDragging, setIsDragging] = useState(false);
+    const comparisonRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         const init = async () => {
             try {
@@ -61,6 +70,31 @@ export function VectorDBLab() {
         };
         init();
     }, []);
+
+    // Drag Logic for Comparison Split
+    useEffect(() => {
+        if (!isDragging) return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!comparisonRef.current) return;
+            const rect = comparisonRef.current.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            // Clamp between 20% and 80%
+            const ratio = Math.max(0.2, Math.min(0.8, x / rect.width));
+            setSplitRatio(ratio);
+        };
+
+        const handleMouseUp = () => setIsDragging(false);
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
 
     const updateStats = async () => {
         const stats = await getStoreStats();
@@ -88,6 +122,7 @@ export function VectorDBLab() {
         await updateStats();
         setActivePreset(null);
         setResult(null);
+        setExpandedContexts([]);
     };
 
     const handleSearch = async () => {
@@ -96,11 +131,18 @@ export function VectorDBLab() {
         try {
             const data = await runRagWorkflow(query, model, embedModel);
             setResult(data);
+            setExpandedContexts([]);
         } catch (error) {
             console.error("Search failed", error);
         } finally {
             setIsSearching(false);
         }
+    };
+
+    const toggleContext = (idx: number) => {
+        setExpandedContexts(prev =>
+            prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx]
+        );
     };
 
     return (
@@ -140,7 +182,7 @@ export function VectorDBLab() {
             <div className="flex flex-1 overflow-hidden">
 
                 {/* Left Panel: Data Ingestion */}
-                <div className="w-80 bg-zinc-50 dark:bg-black/20 border-r border-zinc-200 dark:border-zinc-800 p-6 overflow-y-auto flex flex-col">
+                <div className="w-80 bg-zinc-50 dark:bg-black/20 border-r border-zinc-200 dark:border-zinc-800 p-6 overflow-y-auto flex flex-col shrink-0">
                     <h4 className="text-xs font-black text-zinc-400 uppercase tracking-widest mb-4">Knowledge Source</h4>
 
                     <div className="space-y-3 mb-8">
@@ -150,8 +192,8 @@ export function VectorDBLab() {
                                 onClick={() => handleIngest(key)}
                                 disabled={isIngesting}
                                 className={`w-full text-left p-4 rounded-xl border transition-all relative overflow-hidden group ${activePreset === key
-                                        ? 'bg-white dark:bg-zinc-800 border-indigo-500 shadow-md ring-1 ring-indigo-500'
-                                        : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700'
+                                    ? 'bg-white dark:bg-zinc-800 border-indigo-500 shadow-md ring-1 ring-indigo-500'
+                                    : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700'
                                     }`}
                             >
                                 <div className="relative z-10">
@@ -198,7 +240,7 @@ export function VectorDBLab() {
                 </div>
 
                 {/* Right Panel: RAG Interface */}
-                <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative">
+                <div className="flex-1 flex flex-col bg-white dark:bg-zinc-950 relative overflow-hidden">
 
                     {/* Query Input */}
                     <div className="p-6 border-b border-zinc-100 dark:border-zinc-800">
@@ -238,17 +280,17 @@ export function VectorDBLab() {
 
                     {/* Results Area */}
                     <div className="flex-1 overflow-y-auto p-6 scroll-smooth">
-                        <div className="max-w-4xl mx-auto space-y-8">
+                        <div className="max-w-5xl mx-auto space-y-8">
                             <AnimatePresence mode="wait">
                                 {result ? (
                                     <motion.div
                                         initial={{ opacity: 0, y: 20 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        className="space-y-8"
+                                        className="space-y-8 h-full flex flex-col"
                                     >
 
-                                        {/* 1. Retrieval Visualization */}
-                                        <section>
+                                        {/* 1. Retrieval Visualization (Top Row) */}
+                                        <section className="shrink-0">
                                             <div className="flex items-center gap-2 mb-4">
                                                 <div className="bg-emerald-100 dark:bg-emerald-900/30 p-1.5 rounded-lg">
                                                     <Server className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
@@ -260,63 +302,100 @@ export function VectorDBLab() {
                                             </div>
 
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                {result.retrievedContext.map((item, idx) => (
-                                                    <motion.div
-                                                        key={idx}
-                                                        initial={{ opacity: 0, scale: 0.95 }}
-                                                        animate={{ opacity: 1, scale: 1 }}
-                                                        transition={{ delay: idx * 0.1 }}
-                                                        className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-xl p-4 relative group"
-                                                    >
-                                                        <div className="absolute top-3 right-3 text-[10px] font-bold bg-white dark:bg-black/40 px-2 py-0.5 rounded-full text-emerald-600 shadow-sm">
-                                                            {(item.score * 100).toFixed(1)}% Match
-                                                        </div>
-                                                        <FileText className="w-5 h-5 text-emerald-300 dark:text-emerald-700/50 mb-3" />
-                                                        <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed font-medium line-clamp-4">
-                                                            "{item.document.content}"
-                                                        </p>
-                                                    </motion.div>
-                                                ))}
+                                                {result.retrievedContext.map((item, idx) => {
+                                                    const isExpanded = expandedContexts.includes(idx);
+                                                    return (
+                                                        <motion.div
+                                                            key={idx}
+                                                            initial={{ opacity: 0, scale: 0.95 }}
+                                                            animate={{ opacity: 1, scale: 1 }}
+                                                            transition={{ delay: idx * 0.1 }}
+                                                            onClick={() => toggleContext(idx)}
+                                                            className={`bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/30 rounded-xl p-4 relative group cursor-pointer hover:border-emerald-300 dark:hover:border-emerald-700 transition-all ${isExpanded ? 'row-span-2 shadow-lg z-10' : ''}`}
+                                                        >
+                                                            <div className="flex justify-between items-start mb-2">
+                                                                <FileText className="w-5 h-5 text-emerald-300 dark:text-emerald-700/50" />
+                                                                <div className="text-[10px] font-bold bg-white dark:bg-black/40 px-2 py-0.5 rounded-full text-emerald-600 shadow-sm">
+                                                                    {(item.score * 100).toFixed(1)}%
+                                                                </div>
+                                                            </div>
+                                                            <p className={`text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed font-medium ${isExpanded ? '' : 'line-clamp-4'}`}>
+                                                                "{item.document.content}"
+                                                            </p>
+                                                            <div className="mt-2 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                {isExpanded ? <Minimize2 className="w-3 h-3 text-zinc-400" /> : <Maximize2 className="w-3 h-3 text-zinc-400" />}
+                                                            </div>
+                                                        </motion.div>
+                                                    );
+                                                })}
                                             </div>
                                         </section>
 
-                                        {/* 2. Generation Comparison */}
-                                        <section className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-                                            {/* Connector Line */}
-                                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center z-10 border border-zinc-200 dark:border-zinc-700 text-xs font-bold text-zinc-400">
-                                                VS
-                                            </div>
+                                        {/* 2. Generation Comparison (Adjustable Split View) */}
+                                        <section
+                                            ref={comparisonRef}
+                                            className="flex-1 min-h-[400px] flex relative select-none"
+                                        >
 
-                                            {/* RAG Answer */}
-                                            <div className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-2xl p-6 relative overflow-hidden">
+                                            {/* RAG Answer (Left Pane) */}
+                                            <div
+                                                className="bg-indigo-50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-l-2xl p-6 relative overflow-hidden flex flex-col"
+                                                style={{ width: `${splitRatio * 100}%` }}
+                                            >
                                                 <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
-                                                <div className="flex items-center gap-2 mb-4">
+                                                <div className="flex items-center gap-2 mb-4 shrink-0">
                                                     <BrainCircuit className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                                                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-300">RAG Enhanced Answer</h4>
+                                                    <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-300 truncate">RAG Enhanced Answer</h4>
                                                 </div>
-                                                <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed">
-                                                    {result.answer}
-                                                </p>
-                                                <div className="mt-4 pt-4 border-t border-indigo-200/50 dark:border-indigo-800/50 flex gap-4">
-                                                    <div className="text-[10px] font-medium text-indigo-400">
-                                                        <span className="font-bold">Fact Check:</span> Grounded in {result.retrievedContext.length} sources
+                                                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                                    <p className="text-sm text-zinc-800 dark:text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                                                        {result.answer}
+                                                    </p>
+                                                </div>
+                                                <div className="mt-4 pt-4 border-t border-indigo-200/50 dark:border-indigo-800/50 flex gap-4 shrink-0">
+                                                    <div className="text-[10px] font-medium text-indigo-400 truncate">
+                                                        <span className="font-bold">Fact Check:</span> {result.retrievedContext.length} sources linked
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {/* Direct Answer */}
-                                            <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 opacity-75 grayscale hover:grayscale-0 transition-all">
-                                                <div className="flex items-center gap-2 mb-4">
+                                            {/* Drag Handle */}
+                                            <div
+                                                onMouseDown={() => setIsDragging(true)}
+                                                className="w-4 flex items-center justify-center cursor-col-resize hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors z-20 -ml-[1px] -mr-[1px]"
+                                            >
+                                                <div className="h-8 w-1 bg-zinc-300 dark:bg-zinc-700 rounded-full" />
+                                            </div>
+
+                                            {/* Direct Answer (Right Pane) */}
+                                            <div
+                                                className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-r-2xl p-6 flex flex-col overflow-hidden"
+                                                style={{ width: `${(1 - splitRatio) * 100}%` }}
+                                            >
+                                                <div className="flex items-center gap-2 mb-4 shrink-0">
                                                     <Bot className="w-5 h-5 text-zinc-500" />
-                                                    <h4 className="text-sm font-bold text-zinc-500">Standard LLM Answer</h4>
+                                                    <h4 className="text-sm font-bold text-zinc-500 truncate">Standard LLM Answer</h4>
                                                 </div>
-                                                <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed italic">
-                                                    {result.noRagAnswer}
-                                                </p>
-                                                <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-[10px] text-zinc-400 font-medium">
+                                                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                                    <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed italic whitespace-pre-wrap relative">
+                                                        {result.noRagAnswer}
+                                                    </p>
+                                                </div>
+                                                <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 text-[10px] text-zinc-400 font-medium shrink-0">
                                                     Standard Model Knowledge Only
                                                 </div>
                                             </div>
+
+                                            {/* Centered VS Badge (Absolute, moves with split) */}
+                                            <div
+                                                className="absolute top-1/2 -translate-y-1/2 z-30 pointer-events-none"
+                                                style={{ left: `calc(${splitRatio * 100}%)` }}
+                                            >
+                                                <div className="w-8 h-8 bg-zinc-100 dark:bg-zinc-800 rounded-full flex items-center justify-center border border-zinc-200 dark:border-zinc-700 text-xs font-bold text-zinc-400 -translate-x-1/2 shadow-sm">
+                                                    VS
+                                                </div>
+                                            </div>
+
                                         </section>
 
                                     </motion.div>
