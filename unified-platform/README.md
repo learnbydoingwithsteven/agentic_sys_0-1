@@ -1,36 +1,59 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Agentic AI Systems: Zero to Hero 🚀
 
-## Getting Started
+A comprehensive, hands-on course to master AI Engineering. This monorepo contains 33+ practical modules, taking you from basic prompts to advanced multi-agent orchestration.
 
-First, run the development server:
+## 🎓 Curriculum Overview
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+The course is divided into 4 main levels + a Capstone project.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Level 1: The Foundation
+- **Mod 1-20**: Basics of LLMs, Prompt Engineering, Chat Memory, and simple Tools.
+- *Key Tech*: LangChain basics, Ollama, React State.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Level 2: RAG & Context
+- **Mod 21-25**: Vector Embeddings, Semantic Search, and RAG pipelines.
+- **Mod 26-27**: Advanced Conversational Memory and Persistence.
+- *Key Tech*: Vector Stores, Embeddings API, Document Chunking.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Level 3: Reasoning & Tools
+- **Mod 28**: Structured Data Extraction (JSON Schema).
+- **Mod 29**: Chain of Thought & Reasoning Models (System 1 vs System 2).
+- *Key Tech*: Function Calling, Output Parsers, Reasoning Prompts.
 
-## Learn More
+### Level 4: Production & Scale
+- **Mod 30**: Eval Driven Development (LLM-as-a-Judge).
+- **Mod 31**: End-to-End Testing (User Simulator Agents).
+- **Mod 32**: Observability (AI Ops Dashboard, Latency, Cost).
+- *Key Tech*: Automated Testing, Metrics, Dashboards.
 
-To learn more about Next.js, take a look at the following resources:
+### 🏆 Capstone: The Multi-Agent Orchestrator
+- **Mod 33**: A complete "Head Node" architecture.
+- **Feature**: An Orchestrator Agent routes tasks to specialized Workers (Researcher, Coder, Analyst).
+- **Tech Stack**: Router Pattern, Multi-Agent Collaboration.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🛠️ Tech Stack
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **Frontend**: Next.js 14, React, Tailwind CSS, Framer Motion.
+- **Backend/AI**: LangChain JS, Ollama (Local LLMs).
+- **Language**: TypeScript throughout.
 
-## Deploy on Vercel
+## 🚀 Getting Started
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Prerequisites**
+   - Node.js 18+
+   - [Ollama](https://ollama.com/) installed and running (`ollama serve`).
+   - Pull the required model: `ollama pull llama3.2` (or your preferred small model).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **Installation**
+   ```bash
+   npm install
+   ```
+
+3. **Run the Platform**
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3105](http://localhost:3105) to browse the course catalog.
+
+## 🤝 Contributing
+Built with ❤️ by the Course Team.
