@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { ingestDocument, chatWithRag, type ChatMessage } from '@/actions/course_023_basic_rag/rag_backend';
 import { RAG_PRESETS } from '@/actions/course_023_basic_rag/presets';
+import { getOllamaModels } from '@/actions/course_004_state_management/chat';
 
 interface Message extends ChatMessage {
     id: string;
@@ -41,6 +42,33 @@ export function RagChatLab() {
     // Context State
     const [activeContext, setActiveContext] = useState<string[]>([]);
 
+    // Model Selection State
+    const [models, setModels] = useState<string[]>([]);
+    const [chatModel, setChatModel] = useState<string>("llama3.2");
+    const [embedModel, setEmbedModel] = useState<string>("nomic-embed-text");
+
+    // Fetch models on mount
+    useEffect(() => {
+        const init = async () => {
+            try {
+                const available = await getOllamaModels();
+                setModels(available);
+                if (available.length > 0) {
+                    // Try to preserve default if available, else pick first
+                    if (!available.includes(chatModel)) setChatModel(available[0]);
+
+                    // Simple heuristic for embedding model (usually contains 'embed' or 'nomic')
+                    const embed = available.find(m => m.includes('embed') || m.includes('nomic'));
+                    if (embed) setEmbedModel(embed);
+                    else if (available.includes("nomic-embed-text")) setEmbedModel("nomic-embed-text");
+                }
+            } catch (e) {
+                console.error("Failed to load models", e);
+            }
+        };
+        init();
+    }, []);
+
     // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -51,11 +79,11 @@ export function RagChatLab() {
         setIsIngesting(true);
         setIngestStats(null);
         try {
-            const result = await ingestDocument(kbContent);
+            const result = await ingestDocument(kbContent, embedModel);
             setIngestStats(result);
             setMessages(prev => [
                 ...prev,
-                { id: Date.now().toString(), role: 'assistant', content: `Creating new knowledge base... Done! created ${result.chunks} chunks. Ready for questions.` }
+                { id: Date.now().toString(), role: 'assistant', content: `Creating new knowledge base... Done! created ${result.chunks} chunks using ${embedModel}. Ready for questions.` }
             ]);
         } catch (error) {
             console.error(error);
@@ -75,7 +103,7 @@ export function RagChatLab() {
 
         try {
             // Optimistic assistant message (optional typing indicator could go here)
-            const result = await chatWithRag(userMsg.content, []); // history not used yet in backend
+            const result = await chatWithRag(userMsg.content, [], chatModel, embedModel); // Pass selected models to backend
 
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
@@ -105,14 +133,31 @@ export function RagChatLab() {
 
             {/* 1. Knowledge Base Config (Left Panel) */}
             <div className="w-1/3 min-w-[320px] bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col">
-                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-2">
-                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
-                        <Database className="w-5 h-5" />
+                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
+                            <Database className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-zinc-800 dark:text-zinc-100">Knowledge Base</h3>
                     </div>
-                    <h3 className="font-bold text-zinc-800 dark:text-zinc-100">Knowledge Base</h3>
                 </div>
 
                 <div className="flex-1 p-6 overflow-y-auto custom-scrollbar flex flex-col gap-6">
+
+                    {/* Embedding Model Selector */}
+                    <div>
+                        <label className="text-[10px] uppercase font-bold text-zinc-400 mb-2 block">Embedding Model</label>
+                        <select
+                            value={embedModel}
+                            onChange={(e) => setEmbedModel(e.target.value)}
+                            className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2 text-xs font-mono text-zinc-700 dark:text-zinc-300 outline-none"
+                        >
+                            {models.filter(m => m.includes('embed') || m.includes('nomic')).length > 0
+                                ? models.filter(m => m.includes('embed') || m.includes('nomic')).map(m => <option key={m} value={m}>{m}</option>)
+                                : models.map(m => <option key={m} value={m}>{m}</option>) // Fallback to all if no embeds found
+                            }
+                        </select>
+                    </div>
 
                     {/* Presets */}
                     <div>
@@ -172,8 +217,15 @@ export function RagChatLab() {
                         <Bot className="w-5 h-5 text-indigo-500" />
                         <span className="font-bold text-sm text-zinc-700 dark:text-zinc-200">RAG Agent</span>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
-                        <span>MODEL: LLAMA3.2</span>
+                    <div className="flex items-center gap-2">
+                        <label className="text-[10px] uppercase font-bold text-zinc-400 hidden sm:block">Model:</label>
+                        <select
+                            value={chatModel}
+                            onChange={(e) => setChatModel(e.target.value)}
+                            className="bg-transparent text-xs font-mono text-zinc-600 dark:text-zinc-400 outline-none cursor-pointer hover:text-indigo-600 transition-colors text-right"
+                        >
+                            {models.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
                     </div>
                 </div>
 
