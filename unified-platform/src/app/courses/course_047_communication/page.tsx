@@ -1,19 +1,44 @@
-
 import React from 'react';
-import StaticCoursePage from "@/components/StaticCoursePage";
-import "@/app/legacy.css";
+import { ProtocolLab } from '@/components/demos/course_047_communication/ProtocolLab';
+import { Network, Server } from 'lucide-react';
 
-const sections = [{"title":"Course Overview","content":"<p>Welcome to Course 47: Agent Communication Protocols. This course is part of the advanced level curriculum in our comprehensive agentic AI systems program.</p><div class=\"info-box\">\n                <h4>What You'll Learn</h4>\n                <ul>\n                    <li>Core concepts and principles of agent communication protocols</li>\n                    <li>Practical implementation techniques</li>\n                    <li>Real-world applications and use cases</li>\n                    <li>Best practices and common pitfalls</li>\n                </ul>\n            </div>"},{"title":"Key Concepts","content":"<p>This course covers essential topics in agent communication protocols, providing you with both theoretical knowledge and practical skills.</p><h3>Fundamentals</h3><p>Understanding the foundational principles is crucial for mastering agent communication protocols. We'll explore:</p><ul>\n                <li>Core architecture and design patterns</li>\n                <li>Implementation strategies</li>\n                <li>Performance considerations</li>\n                <li>Integration with other systems</li>\n            </ul><h3>Advanced Topics</h3><p>Building on the fundamentals, we'll dive into advanced concepts:</p><ul>\n                <li>Optimization techniques</li>\n                <li>Scalability patterns</li>\n                <li>Error handling and recovery</li>\n                <li>Production deployment</li>\n            </ul>"},{"title":"Practical Applications","content":"<div class=\"success-box\">\n                <h4>Real-World Use Cases</h4>\n                <p>The techniques learned in this course are widely used in:</p>\n                <ul>\n                    <li>Enterprise AI systems</li>\n                    <li>Production applications</li>\n                    <li>Research and development</li>\n                    <li>Autonomous systems</li>\n                </ul>\n            </div>"},{"title":"Implementation Example","content":"<div class=\"code-block\">// Example implementation\nclass AgentSystem {\n    constructor(config) {\n        this.config = config;\n        this.state = {};\n    }\n    \n    async process(input) {\n        // Process input\n        const result = await this.execute(input);\n        return result;\n    }\n    \n    async execute(input) {\n        // Implementation details\n        return { success: true, data: input };\n    }\n}</div>"},{"title":"Best Practices","content":"<ul>\n                <li>✅ Start with clear requirements and goals</li>\n                <li>✅ Implement comprehensive error handling</li>\n                <li>✅ Monitor performance and optimize</li>\n                <li>✅ Test thoroughly before deployment</li>\n                <li>✅ Document your implementation</li>\n                <li>❌ Don't skip validation steps</li>\n                <li>❌ Avoid over-complication</li>\n            </ul>"},{"title":"Next Steps","content":"<p>After completing this course, you'll be ready to:</p><ol>\n                <li>Implement agent communication protocols in your projects</li>\n                <li>Optimize and scale your solutions</li>\n                <li>Integrate with other AI systems</li>\n                <li>Move on to more advanced topics</li>\n            </ol><div class=\"warning-box\">\n                <strong>Important:</strong> Make sure to complete the interactive demo to reinforce your learning!\n            </div>"}];
-
-export default function Page() {
+export default function CoursePage() {
   return (
-    <StaticCoursePage
-      id="course_047_communication"
-      title="Agent Communication Protocols"
-      description="Design protocols for agents to communicate effectively."
-      level="advanced"
-      demoId="course_047_communication"
-      sections={sections}
-    />
+    <div className="flex bg-zinc-50 dark:bg-zinc-950 min-h-screen font-sans text-zinc-900 dark:text-zinc-100">
+      <main className="flex-1 max-w-6xl mx-auto p-6 lg:p-12 xl:p-16 w-full">
+        <header className="mb-12">
+          <div className="text-sm font-bold tracking-wider text-green-600 dark:text-green-400 uppercase mb-3">Module 6.7</div>
+          <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6 bg-gradient-to-r from-green-600 to-emerald-500 bg-clip-text text-transparent">
+            Agent Communication Protocols
+          </h1>
+          <p className="text-xl text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-3xl">
+            Don't let agents chat casually. Enforce strict <strong>JSON Schemas</strong> and Handshakes to build reliable multi-agent systems.
+          </p>
+        </header>
+
+        <section className="mb-16">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+              <Network className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </div>
+            <h2 className="text-2xl font-bold">The Babel Problem</h2>
+          </div>
+          <p className="max-w-prose text-zinc-500 mb-8">
+            Natural language is ambiguous. "I want a big pizza" is hard for a machine to process. <code>{`{size: "large"}`}</code> is unambiguous.
+          </p>
+        </section>
+
+        <section className="mb-24">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">Interactive Lab: The Handshake</h2>
+            <div className="p-4 bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-800 rounded-xl text-sm text-green-800 dark:text-green-200 flex items-start gap-3">
+              <div className="shrink-0 mt-0.5"><Server className="w-4 h-4" /></div>
+              <p><strong>Experiment:</strong> Try ordering a pizza using natural language and watch the server struggle. Then switch to the <strong>JSON Protocol</strong> and see the instant success.</p>
+            </div>
+          </div>
+          <ProtocolLab />
+        </section>
+      </main>
+    </div>
   );
 }
