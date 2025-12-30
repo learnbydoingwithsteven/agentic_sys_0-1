@@ -1,93 +1,107 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-    PenTool,
-    MessageSquare,
-    CheckCircle,
-    ArrowRight,
-    RefreshCw
+    Sparkles,
+    Edit3,
+    MessageCircle,
+    ArrowRight
 } from 'lucide-react';
-import { runSelfReflection, ReflectionResult } from '@/actions/course_045_self_reflection/reflection_backend';
+import { runReflexionLoop, ReflectionStep } from '@/actions/course_045_self_reflection/reflection_backend';
 
 export function ReflectionLab() {
-    const [request, setRequest] = useState("");
-    const [result, setResult] = useState<ReflectionResult | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false);
+    const [topic, setTopic] = useState("Describe the sky");
+    const [steps, setSteps] = useState<ReflectionStep[]>([]);
+    const [running, setRunning] = useState(false);
 
-    const handleRun = async (t: string = request) => {
-        if (!t.trim() || isProcessing) return;
-        setIsProcessing(true);
-        setResult(null); // Clear previous
+    const handleRun = async () => {
+        setRunning(true);
+        setSteps([]);
+        const result = await runReflexionLoop(topic);
 
-        try {
-            const res = await runSelfReflection(t);
-            setResult(res);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsProcessing(false);
+        for (const step of result) {
+            await new Promise(r => setTimeout(r, 1200));
+            setSteps(prev => [...prev, step]);
         }
+        setRunning(false);
     };
 
     return (
-        <div className="flex flex-col gap-8 h-[800px]">
-            {/* Input */}
-            <div className="flex bg-white dark:bg-zinc-900 p-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <input
-                    value={request}
-                    onChange={e => setRequest(e.target.value)}
-                    placeholder="E.g. 'Write a polite email declining a wedding invitation'"
-                    className="flex-1 bg-transparent px-4 border-none outline-none"
-                    disabled={isProcessing}
-                />
+        <div className="flex flex-col gap-8 h-[700px]">
+            {/* Controls */}
+            <div className="flex gap-4 items-center bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <div className="flex-1">
+                    <label className="font-bold text-xs uppercase tracking-widest text-zinc-500 mb-2 block">Writing Prompt</label>
+                    <input
+                        value={topic}
+                        onChange={e => setTopic(e.target.value)}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 font-bold text-zinc-700 dark:text-zinc-200 focus:ring-2 ring-indigo-500 outline-none"
+                    />
+                </div>
                 <button
-                    onClick={() => handleRun()}
-                    disabled={isProcessing || !request}
-                    className="bg-purple-600 hover:bg-purple-700 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50"
+                    onClick={handleRun}
+                    disabled={running}
+                    className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 mt-6 disabled:opacity-50"
                 >
-                    {isProcessing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <PenTool className="w-4 h-4" />}
+                    {running ? <Edit3 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+                    {running ? 'Refining...' : 'Start Reflexion'}
                 </button>
             </div>
 
-            {/* Pipeline View */}
-            <div className="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
+            {/* Steps */}
+            <div className="flex-1 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800 overflow-y-auto custom-scrollbar flex flex-col gap-6">
+                <AnimatePresence>
+                    {steps.map((step, i) => (
+                        <motion.div
+                            key={step.attempt}
+                            initial={{ opacity: 0, x: 50 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                            className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm relative overflow-hidden"
+                        >
+                            {/* Header */}
+                            <div className="flex justify-between items-center mb-4">
+                                <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">Attempt #{step.attempt}</div>
+                                <div className={`px-3 py-1 rounded-full text-xs font-bold ${step.score >= 9 ? 'bg-green-100 text-green-700' :
+                                        step.score >= 6 ? 'bg-amber-100 text-amber-700' :
+                                            'bg-red-100 text-red-700'
+                                    }`}>
+                                    Quality Score: {step.score}/10
+                                </div>
+                            </div>
 
-                {/* 1. Draft */}
-                <div className="flex-1 flex flex-col min-h-0 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-                    <div className="flex items-center gap-2 mb-3 text-xs font-bold text-zinc-500 uppercase tracking-wider">
-                        <PenTool className="w-4 h-4" /> 1. Draft
-                    </div>
-                    <div className="flex-1 overflow-y-auto text-sm text-zinc-600 dark:text-zinc-400 whitespace-pre-wrap custom-scrollbar">
-                        {result ? result.draft : (isProcessing && "Drafting...")}
-                    </div>
-                </div>
+                            {/* Content */}
+                            <div className="text-lg font-serif mb-6 text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-950 p-4 rounded-xl border border-zinc-100 dark:border-zinc-800">
+                                "{step.content}"
+                            </div>
 
-                <div className="hidden md:flex flex-col justify-center text-zinc-300"><ArrowRight /></div>
+                            {/* Critique (if not perfect) */}
+                            {step.score < 10 && (
+                                <div className="flex items-start gap-3 text-sm text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/10 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+                                    <MessageCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                                    <div>
+                                        <span className="font-bold mr-1">Self-Critique:</span>
+                                        {step.critique}
+                                    </div>
+                                </div>
+                            )}
 
-                {/* 2. Critique */}
-                <div className="flex-1 flex flex-col min-h-0 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-100 dark:border-red-900 p-4">
-                    <div className="flex items-center gap-2 mb-3 text-xs font-bold text-red-600 dark:text-red-400 uppercase tracking-wider">
-                        <MessageSquare className="w-4 h-4" /> 2. Critique
-                    </div>
-                    <div className="flex-1 overflow-y-auto text-sm text-red-800 dark:text-red-300 whitespace-pre-wrap custom-scrollbar">
-                        {result ? result.critique : (isProcessing && result?.draft && "Critiquing...")}
-                    </div>
-                </div>
+                            {/* Final Success */}
+                            {step.score === 10 && (
+                                <div className="flex items-center gap-2 text-green-600 font-bold justify-center mt-4">
+                                    <Sparkles className="w-5 h-5" /> Optimized Result
+                                </div>
+                            )}
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
 
-                <div className="hidden md:flex flex-col justify-center text-zinc-300"><ArrowRight /></div>
-
-                {/* 3. Final */}
-                <div className="flex-1 flex flex-col min-h-0 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900 p-4 shadow-lg">
-                    <div className="flex items-center gap-2 mb-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                        <CheckCircle className="w-4 h-4" /> 3. Final Version
+                {steps.length === 0 && !running && (
+                    <div className="flex-1 flex items-center justify-center text-zinc-400 italic">
+                        Waiting for initial draft...
                     </div>
-                    <div className="flex-1 overflow-y-auto text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap leading-relaxed custom-scrollbar">
-                        {result ? result.final : (isProcessing && result?.critique && "Revising...")}
-                    </div>
-                </div>
-
+                )}
             </div>
         </div>
     );
