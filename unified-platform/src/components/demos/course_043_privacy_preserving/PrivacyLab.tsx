@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Eye,
     EyeOff,
     CheckCircle,
     Lock,
-    RefreshCw
+    RefreshCw,
+    Cpu
 } from 'lucide-react';
 import { redactPII, RedactionResult } from '@/actions/course_043_privacy_preserving/privacy_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 const SAMPLE_TEXT = `My email is john.doe@example.com and my credit card is 4532-1234-5678-9012. Please process payment.`;
 
@@ -18,29 +20,65 @@ export function PrivacyLab() {
     const [result, setResult] = useState<RedactionResult | null>(null);
     const [loading, setLoading] = useState(false);
 
+    // Model Selection State
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    // Fetch models on mount
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleRedact = async () => {
+        if (!selectedModel) return;
         setLoading(true);
-        const res = await redactPII(input);
+        const res = await redactPII(input, selectedModel);
         setResult(res);
         setLoading(false);
     };
 
     return (
         <div className="flex flex-col gap-8 h-[700px]">
-            <div className="flex gap-4 items-center bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <Lock className="w-8 h-8 text-emerald-600" />
-                <div className="flex-1">
-                    <h3 className="font-bold text-lg">PII Shield</h3>
-                    <p className="text-zinc-500 text-sm">Automatic Data Redaction Middleware</p>
+            <div className="flex flex-col bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm gap-4">
+
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <Lock className="w-8 h-8 text-emerald-600" />
+                        <div>
+                            <h3 className="font-bold text-lg">PII Shield</h3>
+                            <p className="text-zinc-500 text-sm">Automatic Data Redaction Middleware</p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        {/* Model Selector */}
+                        <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                            <Cpu className="w-4 h-4 text-zinc-500" />
+                            <select
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                className="bg-transparent text-xs font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer"
+                            >
+                                {models.length === 0 && <option value="">Loading...</option>}
+                                {models.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <button
+                            onClick={handleRedact}
+                            disabled={loading || !selectedModel}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <EyeOff className="w-4 h-4" />}
+                            {loading ? 'Scanning...' : 'Anonymize Data'}
+                        </button>
+                    </div>
                 </div>
-                <button
-                    onClick={handleRedact}
-                    disabled={loading}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50"
-                >
-                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <EyeOff className="w-4 h-4" />}
-                    {loading ? 'Scanning...' : 'Anonymize Data'}
-                </button>
             </div>
 
             <div className="flex-1 grid grid-cols-2 gap-8 h-full min-h-0">

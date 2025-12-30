@@ -1,27 +1,45 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Sparkles,
     Edit3,
     MessageCircle,
-    ArrowRight
+    ArrowRight,
+    Cpu
 } from 'lucide-react';
 import { runReflexionLoop, ReflectionStep } from '@/actions/course_045_self_reflection/reflection_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function ReflectionLab() {
     const [topic, setTopic] = useState("Describe the sky");
     const [steps, setSteps] = useState<ReflectionStep[]>([]);
     const [running, setRunning] = useState(false);
 
+    // Model Selection State
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    // Fetch models on mount
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleRun = async () => {
+        if (!selectedModel) return;
         setRunning(true);
         setSteps([]);
-        const result = await runReflexionLoop(topic);
 
+        // This takes time due to multiple LLM calls (Draft -> Critique -> Rewrite)
+        const result = await runReflexionLoop(topic, selectedModel);
+
+        // Animate results
         for (const step of result) {
-            await new Promise(r => setTimeout(r, 1200));
+            await new Promise(r => setTimeout(r, 800));
             setSteps(prev => [...prev, step]);
         }
         setRunning(false);
@@ -39,9 +57,27 @@ export function ReflectionLab() {
                         className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 font-bold text-zinc-700 dark:text-zinc-200 focus:ring-2 ring-indigo-500 outline-none"
                     />
                 </div>
+
+                {/* Model Selector */}
+                <div className="flex flex-col gap-2 mt-6">
+                    <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 h-12">
+                        <Cpu className="w-4 h-4 text-zinc-500" />
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="bg-transparent text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer w-24"
+                        >
+                            {models.length === 0 && <option value="">Loading...</option>}
+                            {models.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
                 <button
                     onClick={handleRun}
-                    disabled={running}
+                    disabled={running || !selectedModel}
                     className="h-12 px-8 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold flex items-center gap-2 mt-6 disabled:opacity-50"
                 >
                     {running ? <Edit3 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
@@ -50,7 +86,18 @@ export function ReflectionLab() {
             </div>
 
             {/* Steps */}
-            <div className="flex-1 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800 overflow-y-auto custom-scrollbar flex flex-col gap-6">
+            <div className="flex-1 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800 overflow-y-auto custom-scrollbar flex flex-col gap-6 relative">
+                {steps.length === 0 && !running && (
+                    <div className="absolute inset-0 flex items-center justify-center text-zinc-400 italic">
+                        Waiting for initial draft...
+                    </div>
+                )}
+                {running && steps.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-zinc-400 italic animate-pulse">
+                        Drafting and Critiquing... (Running LLM)
+                    </div>
+                )}
+
                 <AnimatePresence>
                     {steps.map((step, i) => (
                         <motion.div
@@ -96,12 +143,6 @@ export function ReflectionLab() {
                         </motion.div>
                     ))}
                 </AnimatePresence>
-
-                {steps.length === 0 && !running && (
-                    <div className="flex-1 flex items-center justify-center text-zinc-400 italic">
-                        Waiting for initial draft...
-                    </div>
-                )}
             </div>
         </div>
     );

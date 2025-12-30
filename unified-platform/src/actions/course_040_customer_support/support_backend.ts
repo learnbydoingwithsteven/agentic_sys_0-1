@@ -1,5 +1,7 @@
 'use server';
 
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
 export interface Ticket {
     id: string;
     message: string;
@@ -8,39 +10,35 @@ export interface Ticket {
     priority: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
-export async function triageTicket(message: string): Promise<Ticket> {
-    const lower = message.toLowerCase();
+export async function triageTicket(message: string, modelName: string = 'auto'): Promise<Ticket> {
+    const systemPrompt = `You are an AI Customer Support Agent.
+    Analyze the incoming message.
+    1. Classify Category: REFUND, TECHNICAL, or GENERAL.
+    2. Analyze Sentiment: ANGRY, NEUTRAL, or HAPPY.
+    3. Assign Priority: HIGH (if Angry or Refund), MEDIUM (Technical), LOW (General/Happy).
+    
+    Return pure JSON: {"category": "...", "sentiment": "...", "priority": "..."}`;
 
-    // 1. Determine Category
-    let category: Ticket['category'] = 'GENERAL';
-    if (lower.includes('refund') || lower.includes('money') || lower.includes('charge')) category = 'REFUND';
-    else if (lower.includes('crash') || lower.includes('error') || lower.includes('bug')) category = 'TECHNICAL';
+    try {
+        const rawResponse = await queryLLM(systemPrompt, message, modelName, false);
+        const parsed = await extractJSON(rawResponse);
 
-    // 2. Determine Sentiment
-    let sentiment: Ticket['sentiment'] = 'NEUTRAL';
-
-    // Check Happy First (Prioritize positive signal)
-    if (lower.includes('love') || lower.includes('great') || lower.includes('thanks') || lower.includes('amazing')) {
-        sentiment = 'HAPPY';
+        return {
+            id: Math.random().toString(36).substr(2, 9),
+            message,
+            category: parsed.category || 'GENERAL',
+            sentiment: parsed.sentiment || 'NEUTRAL',
+            priority: parsed.priority || 'LOW'
+        };
+    } catch (e) {
+        console.error("Triage Failed", e);
+        // Fallback
+        return {
+            id: 'error',
+            message,
+            category: 'GENERAL',
+            sentiment: 'NEUTRAL',
+            priority: 'LOW'
+        };
     }
-    // Then Check Angry
-    else if (lower.includes('hate') || lower.includes('terrible') || lower.includes('stupid') || lower.includes('worst')) {
-        sentiment = 'ANGRY';
-    }
-
-    // 3. Determine Priority (Angry + Refund = High)
-    let priority: Ticket['priority'] = 'LOW';
-    if (sentiment === 'ANGRY' || category === 'REFUND') priority = 'HIGH';
-    if (category === 'TECHNICAL') priority = 'MEDIUM';
-
-    // Mock processing delay
-    await new Promise(r => setTimeout(r, 500));
-
-    return {
-        id: Math.random().toString(36).substr(2, 9),
-        message,
-        category,
-        sentiment,
-        priority
-    };
 }

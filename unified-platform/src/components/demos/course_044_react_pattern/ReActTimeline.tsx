@@ -1,29 +1,46 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     BrainCircuit,
     Search,
     Eye,
     CheckCircle,
-    ArrowRight
+    ArrowRight,
+    Cpu
 } from 'lucide-react';
 import { runReactLoop, ReactStep } from '@/actions/course_044_react_pattern/react_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
-export function ReactLab() {
+export function ReActTimeline() {
     const [question, setQuestion] = useState("What is the age of the current US president?");
     const [steps, setSteps] = useState<ReactStep[]>([]);
     const [running, setRunning] = useState(false);
 
+    // Model Selection State
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    // Fetch models on mount
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleRun = async () => {
+        if (!selectedModel) return;
         setRunning(true);
         setSteps([]);
-        const result = await runReactLoop(question);
 
-        // Animate adding steps one by one
+        // This will block while the server loops through thoughts/actions
+        const result = await runReactLoop(question, selectedModel);
+
+        // Animate adding steps one by one for effect
         for (const step of result) {
-            await new Promise(r => setTimeout(r, 800));
+            await new Promise(r => setTimeout(r, 600));
             setSteps(prev => [...prev, step]);
         }
         setRunning(false);
@@ -41,9 +58,27 @@ export function ReactLab() {
                         className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 font-bold text-zinc-700 dark:text-zinc-200 focus:ring-2 ring-blue-500 outline-none"
                     />
                 </div>
+
+                {/* Model Selector */}
+                <div className="flex flex-col gap-2 mt-6">
+                    <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 h-12">
+                        <Cpu className="w-4 h-4 text-zinc-500" />
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="bg-transparent text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer w-24"
+                        >
+                            {models.length === 0 && <option value="">Loading...</option>}
+                            {models.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
                 <button
                     onClick={handleRun}
-                    disabled={running}
+                    disabled={running || !selectedModel}
                     className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 mt-6 disabled:opacity-50"
                 >
                     {running ? <BrainCircuit className="w-5 h-5 animate-pulse" /> : <BrainCircuit className="w-5 h-5" />}
@@ -56,6 +91,11 @@ export function ReactLab() {
                 {steps.length === 0 && !running && (
                     <div className="absolute inset-0 flex items-center justify-center text-zinc-400 italic">
                         Waiting for input...
+                    </div>
+                )}
+                {running && steps.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-zinc-400 italic animate-pulse">
+                        Thinking... (Running LLM Chain)
                     </div>
                 )}
 

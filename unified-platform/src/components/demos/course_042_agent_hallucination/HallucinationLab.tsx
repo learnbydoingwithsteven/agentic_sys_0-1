@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     ShieldCheck,
     AlertTriangle,
     FileText,
-    Bot
+    Bot,
+    Cpu
 } from 'lucide-react';
 import { checkHallucination, FactCheck } from '@/actions/course_042_agent_hallucination/hallucination_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 const DEFAULT_SOURCE = `Apollo 11 was the spaceflight that first landed humans on the Moon. Commander Neil Armstrong and lunar module pilot Buzz Aldrin formed the American crew that landed the Apollo Lunar Module Eagle on July 20, 1969.`;
 
@@ -20,9 +22,22 @@ export function HallucinationLab() {
     const [checks, setChecks] = useState<FactCheck[]>([]);
     const [analyzing, setAnalyzing] = useState(false);
 
+    // Model Selection State
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    // Fetch models on mount
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleCheck = async () => {
+        if (!selectedModel) return;
         setAnalyzing(true);
-        const res = await checkHallucination(source, response);
+        const res = await checkHallucination(source, response, selectedModel);
         setChecks(res);
         setAnalyzing(false);
     };
@@ -44,9 +59,26 @@ export function HallucinationLab() {
 
                 {/* Agent Output Input */}
                 <div className="flex flex-col gap-2">
-                    <label className="font-bold text-zinc-500 text-xs uppercase tracking-widest flex items-center gap-2">
-                        <Bot className="w-4 h-4" /> Agent Response
-                    </label>
+                    <div className="flex justify-between items-center">
+                        <label className="font-bold text-zinc-500 text-xs uppercase tracking-widest flex items-center gap-2">
+                            <Bot className="w-4 h-4" /> Agent Response
+                        </label>
+
+                        {/* Model Selector */}
+                        <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                            <Cpu className="w-3 h-3 text-zinc-500" />
+                            <select
+                                value={selectedModel}
+                                onChange={(e) => setSelectedModel(e.target.value)}
+                                className="bg-transparent text-xs font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer"
+                            >
+                                {models.length === 0 && <option value="">Loading...</option>}
+                                {models.map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
                     <textarea
                         value={response}
                         onChange={e => setResponse(e.target.value)}
@@ -58,7 +90,7 @@ export function HallucinationLab() {
             <div className="flex justify-center">
                 <button
                     onClick={handleCheck}
-                    disabled={analyzing}
+                    disabled={analyzing || !selectedModel}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-full font-bold flex items-center gap-2 disabled:opacity-50 transition-all hover:scale-105"
                 >
                     <ShieldCheck className="w-5 h-5" />
@@ -75,6 +107,9 @@ export function HallucinationLab() {
                 <div className="space-y-4">
                     {checks.length === 0 && !analyzing && (
                         <div className="text-zinc-400 italic text-center text-sm">Run check to see analysis.</div>
+                    )}
+                    {analyzing && (
+                        <div className="text-zinc-400 italic text-center text-sm animate-pulse">Running Fact Check Agent...</div>
                     )}
 
                     {checks.map((check, i) => (

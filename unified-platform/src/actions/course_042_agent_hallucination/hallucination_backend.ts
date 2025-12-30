@@ -1,44 +1,48 @@
 'use server';
 
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
 export interface FactCheck {
     sentence: string;
     isHallucinated: boolean;
     reason?: string;
 }
 
-export async function checkHallucination(source: string, response: string): Promise<FactCheck[]> {
-    const sentences = response.split('.').filter(s => s.trim().length > 0);
-    const results: FactCheck[] = [];
+export async function checkHallucination(source: string, response: string, modelName: string = 'auto'): Promise<FactCheck[]> {
+    const systemPrompt = `You are a Fact Checking Agent.
+    Your job is to verify the 'Agent Response' against the 'Ground Truth Source'.
+    
+    For EACH sentence in the 'Agent Response':
+    1. Determine if it is fully supported by the Source.
+    2. If it contains facts (dates, names, events) NOT found in the source, mark it as a Hallucination.
+    
+    Return a strictly valid JSON array of objects:
+    [
+      { "sentence": "...", "isHallucinated": true, "reason": "Claimed John Glenn commanded, but source says Neil Armstrong." },
+      { "sentence": "...", "isHallucinated": false }
+    ]`;
 
-    for (const s of sentences) {
-        const trimmed = s.trim();
-        let isHallucinated = false;
-        let reason = undefined;
+    try {
+        const rawResponse = await queryLLM(systemPrompt, `Source: "${source}"\n\nAgent Response: "${response}"`, modelName, false);
+        const parsed = await extractJSON(rawResponse);
 
-        // Mock Logic: If sentence contains a number/date that IS NOT in source -> Hallucination
-        const numbersInSentence = trimmed.match(/\d+/g) || [];
-        for (const num of numbersInSentence) {
-            if (!source.includes(num)) {
-                isHallucinated = true;
-                reason = `The number/date "${num}" appears in the answer but NOT in the source text.`;
+        if (!Array.isArray(parsed)) throw new Error("Parsed JSON is not an array");
+
+        return parsed.map((item: any) => ({
+            sentence: item.sentence || "Unknown sentence",
+            isHallucinated: !!item.isHallucinated,
+            reason: item.reason || (item.isHallucinated ? "Not found in source text." : undefined)
+        }));
+
+    } catch (e) {
+        console.error("Fact Check Failed", e);
+        // Fallback or Error reporting
+        return [
+            {
+                sentence: "Error running fact check.",
+                isHallucinated: true,
+                reason: `Model (${modelName}) failed to return valid JSON analysis.`
             }
-        }
-
-        // Mock Logic: Check for key entities (simplistic)
-        if (trimmed.includes("Mars") && !source.includes("Mars")) {
-            isHallucinated = true;
-            reason = "Entity 'Mars' mentioned but not found in source.";
-        }
-
-        results.push({
-            sentence: trimmed + '.',
-            isHallucinated,
-            reason
-        });
+        ];
     }
-
-    // Artificial delay
-    await new Promise(r => setTimeout(r, 600));
-
-    return results;
 }

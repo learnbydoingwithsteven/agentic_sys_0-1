@@ -1,24 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Activity,
     BarChart2,
     CheckCircle,
     AlertCircle,
-    Play
+    Play,
+    Cpu
 } from 'lucide-react';
 import { runEvaluation, EvalRun } from '@/actions/course_041_agent_metrics/metric_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function MetricLab() {
     const [runs, setRuns] = useState<EvalRun[]>([]);
     const [running, setRunning] = useState(false);
 
+    // Model Selection State
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    // Fetch models on mount
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleRun = async () => {
+        if (!selectedModel) return;
         setRunning(true);
-        await new Promise(r => setTimeout(r, 1000));
-        const res = await runEvaluation("default");
+        // LLM takes time per item, so no fake delay needed
+        const res = await runEvaluation("default", selectedModel);
         setRuns(res);
         setRunning(false);
     };
@@ -39,13 +54,31 @@ export function MetricLab() {
                     </h3>
                     <p className="text-zinc-500 text-sm">Measure Faithfulness, Relevance, and Precision.</p>
                 </div>
-                <button
-                    onClick={handleRun}
-                    disabled={running}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50"
-                >
-                    <Play className="w-4 h-4 fill-current" /> {running ? 'Evaluating...' : 'Run Benchmarks'}
-                </button>
+
+                <div className="flex items-center gap-4">
+                    {/* Model Selector */}
+                    <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                        <Cpu className="w-4 h-4 text-zinc-500" />
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="bg-transparent text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer w-32"
+                        >
+                            {models.length === 0 && <option value="">Loading...</option>}
+                            {models.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={handleRun}
+                        disabled={running || !selectedModel}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold flex items-center gap-2 disabled:opacity-50"
+                    >
+                        <Play className="w-4 h-4 fill-current" /> {running ? 'Evaluating...' : 'Run Benchmarks'}
+                    </button>
+                </div>
             </div>
 
             <div className="flex-1 flex gap-8 min-h-0">
@@ -54,6 +87,12 @@ export function MetricLab() {
                     <ScoreCard label="Faithfulness" value={getAvg('faithfulness')} color="bg-emerald-500" />
                     <ScoreCard label="Answer Relevance" value={getAvg('answerRelevance')} color="bg-blue-500" />
                     <ScoreCard label="Context Precision" value={getAvg('contextPrecision')} color="bg-purple-500" />
+
+                    {running && (
+                        <div className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl text-center text-xs text-zinc-400 italic animate-pulse border border-zinc-200 dark:border-zinc-800">
+                            Running LLM-as-a-Judge on 3 queries...
+                        </div>
+                    )}
                 </div>
 
                 {/* Detailed Table */}

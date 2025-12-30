@@ -1,5 +1,7 @@
 'use server';
 
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
 export interface LegalClause {
     id: string;
     type: 'RISK' | 'OBLIGATION' | 'NEUTRAL';
@@ -7,45 +9,36 @@ export interface LegalClause {
     explanation: string;
 }
 
-export async function analyzeContract(text: string): Promise<LegalClause[]> {
-    const clauses: LegalClause[] = [];
+export async function analyzeContract(text: string, modelName: string = 'auto'): Promise<LegalClause[]> {
+    const systemPrompt = `You are an AI Legal Assistant. Analyze the provided contract text.
+    Identify key clauses and classify them as 'RISK' (dangerous terms), 'OBLIGATION' (mandatory duties), or 'NEUTRAL' (standard).
+    Return a strictly valid JSON array with objects containing: type, text (the exact clause snippet), and explanation (brief why).
+    Example JSON: [{"type": "RISK", "text": "Terms...", "explanation": "Why..."}]
+    Do not output any markdown or intro text, ONLY the JSON array.`;
 
-    // Mock Analysis Logic
-    if (text.toLowerCase().includes('termination')) {
-        clauses.push({
-            id: '1',
-            type: 'RISK',
-            text: 'Termination for Convenience',
-            explanation: 'This clause allows the other party to end the contract without cause. Ensure notice period is sufficient.'
-        });
-    }
+    try {
+        // We use jsonMode=false because we handle extraction manually, which is more robust for chatty models
+        const rawResponse = await queryLLM(systemPrompt, text, modelName, false);
 
-    if (text.toLowerCase().includes('indemnify')) {
-        clauses.push({
-            id: '2',
-            type: 'OBLIGATION',
-            text: 'Indemnification',
-            explanation: 'You are agreeing to cover specific losses. Verify scope of liability.'
-        });
-    }
+        const parsed = await extractJSON(rawResponse);
 
-    if (text.toLowerCase().includes('jurisdiction')) {
-        clauses.push({
-            id: '3',
+        // Ensure IDs exist and types match
+        if (!Array.isArray(parsed)) throw new Error("Output is not an array");
+
+        return parsed.map((item: any, idx: number) => ({
+            id: String(idx),
+            type: ['RISK', 'OBLIGATION', 'NEUTRAL'].includes(item.type) ? item.type : 'NEUTRAL',
+            text: item.text || '',
+            explanation: item.explanation || 'No explanation provided.'
+        }));
+
+    } catch (e) {
+        console.error("Legal Analysis Failed", e);
+        return [{
+            id: 'error',
             type: 'NEUTRAL',
-            text: 'Governing Law',
-            explanation: 'Standard jurisdiction clause. Check if location is favorable.'
-        });
+            text: 'Analysis Failed',
+            explanation: `Model (${modelName}) failed to produce valid JSON. Try a larger model.`
+        }];
     }
-
-    if (clauses.length === 0) {
-        clauses.push({
-            id: '4',
-            type: 'NEUTRAL',
-            text: 'General Review',
-            explanation: 'No specific high-risk keywords detected in this snippet.'
-        });
-    }
-
-    return clauses;
 }
