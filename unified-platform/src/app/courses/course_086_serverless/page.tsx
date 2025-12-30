@@ -1,19 +1,32 @@
-
 import React from 'react';
-import StaticCoursePage from "@/components/StaticCoursePage";
-import "@/app/legacy.css";
+import { ServerlessLab } from '@/components/demos/course_086_serverless/ServerlessLab';
+import { Zap, Snowflake } from 'lucide-react';
 
-const sections = [{"title":"Course Overview","content":"<p>Welcome to Course 86: Agent Serverless Architecture. This course is part of the master level curriculum in our comprehensive agentic AI systems program.</p><div class=\"info-box\">\n                <h4>What You'll Learn</h4>\n                <ul>\n                    <li>Core concepts and principles of agent serverless architecture</li>\n                    <li>Practical implementation techniques</li>\n                    <li>Real-world applications and use cases</li>\n                    <li>Best practices and common pitfalls</li>\n                </ul>\n            </div>"},{"title":"Key Concepts","content":"<p>This course covers essential topics in agent serverless architecture, providing you with both theoretical knowledge and practical skills.</p><h3>Fundamentals</h3><p>Understanding the foundational principles is crucial for mastering agent serverless architecture. We'll explore:</p><ul>\n                <li>Core architecture and design patterns</li>\n                <li>Implementation strategies</li>\n                <li>Performance considerations</li>\n                <li>Integration with other systems</li>\n            </ul><h3>Advanced Topics</h3><p>Building on the fundamentals, we'll dive into advanced concepts:</p><ul>\n                <li>Optimization techniques</li>\n                <li>Scalability patterns</li>\n                <li>Error handling and recovery</li>\n                <li>Production deployment</li>\n            </ul>"},{"title":"Practical Applications","content":"<div class=\"success-box\">\n                <h4>Real-World Use Cases</h4>\n                <p>The techniques learned in this course are widely used in:</p>\n                <ul>\n                    <li>Enterprise AI systems</li>\n                    <li>Production applications</li>\n                    <li>Research and development</li>\n                    <li>Autonomous systems</li>\n                </ul>\n            </div>"},{"title":"Implementation Example","content":"<div class=\"code-block\">// Example implementation\nclass AgentSystem {\n    constructor(config) {\n        this.config = config;\n        this.state = {};\n    }\n    \n    async process(input) {\n        // Process input\n        const result = await this.execute(input);\n        return result;\n    }\n    \n    async execute(input) {\n        // Implementation details\n        return { success: true, data: input };\n    }\n}</div>"},{"title":"Best Practices","content":"<ul>\n                <li>✅ Start with clear requirements and goals</li>\n                <li>✅ Implement comprehensive error handling</li>\n                <li>✅ Monitor performance and optimize</li>\n                <li>✅ Test thoroughly before deployment</li>\n                <li>✅ Document your implementation</li>\n                <li>❌ Don't skip validation steps</li>\n                <li>❌ Avoid over-complication</li>\n            </ul>"},{"title":"Next Steps","content":"<p>After completing this course, you'll be ready to:</p><ol>\n                <li>Implement agent serverless architecture in your projects</li>\n                <li>Optimize and scale your solutions</li>\n                <li>Integrate with other AI systems</li>\n                <li>Move on to more advanced topics</li>\n            </ol><div class=\"warning-box\">\n                <strong>Important:</strong> Make sure to complete the interactive demo to reinforce your learning!\n            </div>"}];
-
-export default function Page() {
+export default function CoursePage() {
   return (
-    <StaticCoursePage
-      id="course_086_serverless"
-      title="Agent Serverless Architecture"
-      description="Build serverless agent systems with AWS Lambda, Azure Functions."
-      level="master"
-      demoId="course_086_serverless"
-      sections={sections}
-    />
+    <div className="flex bg-zinc-50 dark:bg-zinc-950 min-h-screen font-sans text-zinc-900 dark:text-zinc-100">
+      <main className="flex-1 max-w-6xl mx-auto p-6 lg:p-12 xl:p-16 w-full">
+        <header className="mb-12">
+          <div className="text-sm font-bold tracking-wider text-orange-600 dark:text-orange-400 uppercase mb-3">Module 10.4</div>
+          <h1 className="text-4xl lg:text-5xl font-extrabold tracking-tight mb-6 bg-gradient-to-r from-orange-600 to-yellow-500 bg-clip-text text-transparent">
+            Agent Serverless Architecture
+          </h1>
+          <p className="text-xl text-zinc-600 dark:text-zinc-400 leading-relaxed max-w-3xl">
+            Pay per token. Utilize <strong>Scale-to-Zero</strong> patterns (Lambda/Cloud Functions) for ephemeral agents that only exist when needed.
+          </p>
+        </header>
+
+        <section className="mb-24">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4">Interactive Lab: Cold Start vs Warm Start</h2>
+            <div className="p-4 bg-orange-50 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-800 rounded-xl text-sm text-orange-800 dark:text-orange-200 flex items-start gap-3">
+              <div className="shrink-0 mt-0.5"><Snowflake className="w-4 h-4" /></div>
+              <p><strong>Goal:</strong> Stop clicking to let the function "Freeze" (Cold Start). Notice the high latency. Keep clicking to keep it "Warm" and fast.</p>
+            </div>
+          </div>
+          <ServerlessLab />
+        </section>
+      </main>
+    </div>
   );
 }
