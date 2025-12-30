@@ -7,7 +7,7 @@ export async function getAvailableModels(): Promise<string[]> {
         const response = await fetch(`${OLLAMA_BASE}/tags`);
         if (!response.ok) return [];
         const data = await response.json();
-        return data.models.map((m: any) => m.name);
+        return data.models.map((m: any) => m.name).filter((n: string) => !n.includes('embed'));
     } catch (e) {
         console.error("Failed to fetch Ollama models:", e);
         return [];

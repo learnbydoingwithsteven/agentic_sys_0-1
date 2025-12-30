@@ -1,5 +1,5 @@
 import React from 'react';
-import { ReactLab } from '@/components/demos/course_044_react_pattern/ReactLab';
+import { ReActTimeline } from '@/components/demos/course_044_react_pattern/ReActTimeline';
 import { BrainCircuit, BookOpen } from 'lucide-react';
 
 export default function CoursePage() {
@@ -21,10 +21,10 @@ export default function CoursePage() {
             <h2 className="text-2xl font-bold mb-4">Interactive Lab: Steps of Reasoning</h2>
             <div className="p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl text-sm text-blue-800 dark:text-blue-200 flex items-start gap-3">
               <div className="shrink-0 mt-0.5"><BrainCircuit className="w-4 h-4" /></div>
-              <p><strong>Goal:</strong> Ask "What is the age of the US President?". Watch the agent breakdown the task: Search President -> Get Name -> Search Birthday -> Calculate Age.</p>
+              <p><strong>Goal:</strong> Ask "What is the age of the US President?". Watch the agent breakdown the task: Search President &rarr; Get Name &rarr; Search Birthday &rarr; Calculate Age.</p>
             </div>
           </div>
-          <ReactLab />
+          <ReActTimeline />
         </section>
       </main>
     </div>
