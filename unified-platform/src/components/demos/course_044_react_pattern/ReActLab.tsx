@@ -1,108 +1,104 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
-    Play,
-    Terminal,
+    BrainCircuit,
+    Search,
     Eye,
-    Hammer,
-    Brain
+    CheckCircle,
+    ArrowRight
 } from 'lucide-react';
-import { runReActAgent, ReActStep } from '@/actions/course_044_react_pattern/react_backend';
+import { runReactLoop, ReactStep } from '@/actions/course_044_react_pattern/react_backend';
 
-export function ReActLab() {
-    const [query, setQuery] = useState("");
-    const [steps, setSteps] = useState<ReActStep[]>([]);
-    const [isProcessing, setIsProcessing] = useState(false);
+export function ReactLab() {
+    const [question, setQuestion] = useState("What is the age of the current US president?");
+    const [steps, setSteps] = useState<ReactStep[]>([]);
+    const [running, setRunning] = useState(false);
 
-    const handleRun = async (q: string = query) => {
-        if (!q.trim() || isProcessing) return;
-        setIsProcessing(true);
+    const handleRun = async () => {
+        setRunning(true);
         setSteps([]);
+        const result = await runReactLoop(question);
 
-        try {
-            const result = await runReActAgent(q);
-            // playback effect
-            for (let i = 0; i < result.length; i++) {
-                await new Promise(r => setTimeout(r, 600)); // Delay between steps
-                setSteps(prev => [...prev, result[i]]);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsProcessing(false);
+        // Animate adding steps one by one
+        for (const step of result) {
+            await new Promise(r => setTimeout(r, 800));
+            setSteps(prev => [...prev, step]);
         }
+        setRunning(false);
     };
 
     return (
-        <div className="flex flex-col gap-6 h-[700px]">
-            {/* Input */}
-            <div className="flex bg-white dark:bg-zinc-900 p-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
-                <input
-                    value={query}
-                    onChange={e => setQuery(e.target.value)}
-                    placeholder="Ask: 'How old is Einstein?'"
-                    className="flex-1 bg-transparent px-4 border-none outline-none"
-                    disabled={isProcessing}
-                />
+        <div className="flex flex-col gap-8 h-[700px]">
+            {/* Controls */}
+            <div className="flex gap-4 items-center bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+                <div className="flex-1">
+                    <label className="font-bold text-xs uppercase tracking-widest text-zinc-500 mb-2 block">Agent Task</label>
+                    <input
+                        value={question}
+                        onChange={e => setQuestion(e.target.value)}
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 font-bold text-zinc-700 dark:text-zinc-200 focus:ring-2 ring-blue-500 outline-none"
+                    />
+                </div>
                 <button
-                    onClick={() => handleRun()}
-                    disabled={isProcessing || !query}
-                    className="bg-sky-600 hover:bg-sky-700 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50"
+                    onClick={handleRun}
+                    disabled={running}
+                    className="h-12 px-8 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold flex items-center gap-2 mt-6 disabled:opacity-50"
                 >
-                    <Play className="w-4 h-4 fill-current" />
+                    {running ? <BrainCircuit className="w-5 h-5 animate-pulse" /> : <BrainCircuit className="w-5 h-5" />}
+                    {running ? 'Reasoning...' : 'Start ReAct Loop'}
                 </button>
             </div>
 
-            <div className="flex gap-2 justify-center">
-                {["How old is Einstein?", "How old is Obama today?"].map(q => (
-                    <button key={q} onClick={() => { setQuery(q); handleRun(q); }} className="text-xs px-3 py-1 bg-zinc-100 rounded-full dark:bg-zinc-800">
-                        {q}
-                    </button>
-                ))}
-            </div>
-
-            {/* Trace Timeline */}
-            <div className="flex-1 bg-zinc-50 dark:bg-black/20 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 overflow-y-auto custom-scrollbar relative">
-                <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-zinc-200 dark:bg-zinc-800" />
+            {/* Timeline */}
+            <div className="flex-1 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800 overflow-y-auto custom-scrollbar relative">
+                {steps.length === 0 && !running && (
+                    <div className="absolute inset-0 flex items-center justify-center text-zinc-400 italic">
+                        Waiting for input...
+                    </div>
+                )}
 
                 <div className="space-y-6 relative">
-                    {steps.map((step, idx) => (
+                    {/* Vertical Line */}
+                    {steps.length > 0 && (
+                        <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-zinc-200 dark:bg-zinc-800 -z-10" />
+                    )}
+
+                    {steps.map((step, i) => (
                         <motion.div
-                            key={idx}
+                            key={i}
                             initial={{ opacity: 0, x: -20 }}
                             animate={{ opacity: 1, x: 0 }}
-                            className="flex gap-4 ml-3"
+                            className="flex gap-6 items-start"
                         >
+                            {/* Icon Bubble */}
                             <div className={`
-                                w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-zinc-50 dark:ring-black
-                                ${step.type === 'thought' ? 'bg-zinc-200 text-zinc-600' : ''}
-                                ${step.type === 'action' ? 'bg-blue-100 text-blue-600 border border-blue-200' : ''}
-                                ${step.type === 'observation' ? 'bg-emerald-100 text-emerald-600 border border-emerald-200' : ''}
-                                ${step.type === 'answer' ? 'bg-purple-600 text-white shadow-lg' : ''}
+                                w-10 h-10 rounded-full flex items-center justify-center shrink-0 border-4 border-zinc-50 dark:border-zinc-950 z-10
+                                ${step.type === 'THOUGHT' ? 'bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300' : ''}
+                                ${step.type === 'ACTION' ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300' : ''}
+                                ${step.type === 'OBSERVATION' ? 'bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-300' : ''}
+                                ${step.type === 'ANSWER' ? 'bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300' : ''}
                             `}>
-                                {step.type === 'thought' && <Brain className="w-4 h-4" />}
-                                {step.type === 'action' && <Hammer className="w-4 h-4" />}
-                                {step.type === 'observation' && <Eye className="w-4 h-4" />}
-                                {step.type === 'answer' && <Star className="w-4 h-4 fill-current" />}
+                                {step.type === 'THOUGHT' && <BrainCircuit className="w-5 h-5" />}
+                                {step.type === 'ACTION' && <Search className="w-5 h-5" />}
+                                {step.type === 'OBSERVATION' && <Eye className="w-5 h-5" />}
+                                {step.type === 'ANSWER' && <CheckCircle className="w-5 h-5" />}
                             </div>
 
-                            <div className={`p-4 rounded-xl text-sm border flex-1 ${step.type === 'answer' ? 'bg-white dark:bg-zinc-900 border-purple-200 dark:border-purple-900' : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'}`}>
-                                <div className="text-xs font-bold uppercase tracking-wider mb-1 opacity-50">
-                                    {step.type}
-                                    {step.tool && <span className="ml-2 bg-zinc-100 dark:bg-zinc-800 px-1 rounded normal-case font-mono">{step.tool}()</span>}
-                                </div>
-                                <div className="font-mono text-zinc-700 dark:text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                                    {step.content}
-                                </div>
+                            {/* Content Card */}
+                            <div className={`
+                                flex-1 p-4 rounded-xl border text-sm shadow-sm
+                                ${step.type === 'THOUGHT' ? 'bg-zinc-100 dark:bg-zinc-800 border-transparent italic text-zinc-600 dark:text-zinc-400' : ''}
+                                ${step.type === 'ACTION' ? 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 font-mono text-blue-600 dark:text-blue-400' : ''}
+                                ${step.type === 'OBSERVATION' ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-100 dark:border-amber-800 text-amber-900 dark:text-amber-200' : ''}
+                                ${step.type === 'ANSWER' ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-800 text-green-900 dark:text-green-200 font-bold text-lg' : ''}
+                            `}>
+                                <div className="text-[10px] font-bold uppercase tracking-wider opacity-50 mb-1">{step.type}</div>
+                                {step.content}
                             </div>
                         </motion.div>
                     ))}
-
-                    {steps.length === 0 && !isProcessing && (
-                        <div className="ml-12 text-zinc-400">Waiting for task...</div>
-                    )}
                 </div>
             </div>
         </div>
