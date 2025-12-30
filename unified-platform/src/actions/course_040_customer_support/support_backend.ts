@@ -18,8 +18,15 @@ export async function triageTicket(message: string): Promise<Ticket> {
 
     // 2. Determine Sentiment
     let sentiment: Ticket['sentiment'] = 'NEUTRAL';
-    if (lower.includes('hate') || lower.includes('terrible') || lower.includes('!')) sentiment = 'ANGRY';
-    else if (lower.includes('love') || lower.includes('great') || lower.includes('thanks')) sentiment = 'HAPPY';
+
+    // Check Happy First (Prioritize positive signal)
+    if (lower.includes('love') || lower.includes('great') || lower.includes('thanks') || lower.includes('amazing')) {
+        sentiment = 'HAPPY';
+    }
+    // Then Check Angry
+    else if (lower.includes('hate') || lower.includes('terrible') || lower.includes('stupid') || lower.includes('worst')) {
+        sentiment = 'ANGRY';
+    }
 
     // 3. Determine Priority (Angry + Refund = High)
     let priority: Ticket['priority'] = 'LOW';
