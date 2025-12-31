@@ -21,7 +21,7 @@ export default function CoursePage() {
             <h2 className="text-2xl font-bold mb-4">Interactive Lab: Triplet Extraction</h2>
             <div className="p-4 bg-teal-50 dark:bg-teal-900/10 border border-teal-100 dark:border-teal-800 rounded-xl text-sm text-teal-800 dark:text-teal-200 flex items-start gap-3">
               <div className="shrink-0 mt-0.5"><Share2 className="w-4 h-4" /></div>
-              <p><strong>Experiment:</strong> Feed text like "Steve Jobs founded Apple". Watch the agent extract the relation <code>(Steve Jobs) --[FOUNDED]--> (Apple)</code>.</p>
+              <p><strong>Experiment:</strong> Feed text like "Steve Jobs founded Apple". Watch the agent extract the relation <code>(Steve Jobs) --[FOUNDED]--&gt; (Apple)</code>.</p>
             </div>
           </div>
           <KnowledgeGraphLab />
