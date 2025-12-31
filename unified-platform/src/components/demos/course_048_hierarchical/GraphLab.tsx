@@ -1,31 +1,46 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     GitGraph,
     Play,
     CheckCircle,
     CircleDashed,
-    User
+    User,
+    Cpu,
+    FileText
 } from 'lucide-react';
 import { runHierarchicalAgent, GraphState, GraphNode } from '@/actions/course_048_hierarchical/graph_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function GraphLab() {
-    const [task, setTask] = useState("");
+    const [task, setTask] = useState("Write a blog post about the future of AI agents");
     const [currentState, setCurrentState] = useState<GraphState | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleRun = async (t: string = task) => {
-        if (!t.trim() || isProcessing) return;
+        if (!t.trim() || isProcessing || !selectedModel) return;
         setIsProcessing(true);
+        setCurrentState(null);
 
         try {
-            const history = await runHierarchicalAgent(t);
-            // Replay
+            const history = await runHierarchicalAgent(t, selectedModel);
+            // Replay with animation
             for (const state of history) {
                 setCurrentState(state);
-                await new Promise(r => setTimeout(r, 1000));
+                await new Promise(r => setTimeout(r, 1200));
             }
         } catch (e) {
             console.error(e);
@@ -54,22 +69,40 @@ export function GraphLab() {
     );
 
     return (
-        <div className="flex flex-col gap-6 h-[700px]">
+        <div className="flex flex-col gap-6 h-[800px]">
             {/* Input */}
-            <div className="flex bg-white dark:bg-zinc-900 p-2 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+            <div className="flex gap-4 items-center bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
                 <input
                     value={task}
                     onChange={e => setTask(e.target.value)}
                     placeholder="Task e.g. 'Write a blog about AI'"
-                    className="flex-1 bg-transparent px-4 border-none outline-none"
+                    className="flex-1 bg-transparent px-4 border-none outline-none text-zinc-900 dark:text-zinc-100"
                     disabled={isProcessing}
                 />
+
+                {/* Model Selector */}
+                <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                    <Cpu className="w-4 h-4 text-zinc-500" />
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="bg-transparent text-sm font-bold text-zinc-700 dark:text-zinc-200 outline-none cursor-pointer"
+                        disabled={isProcessing}
+                    >
+                        {models.length === 0 && <option value="">Loading...</option>}
+                        {models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+                </div>
+
                 <button
                     onClick={() => handleRun()}
-                    disabled={isProcessing || !task}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white w-10 h-10 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50"
+                    disabled={isProcessing || !task || !selectedModel}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 h-10 rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-50 font-bold"
                 >
                     <Play className="w-4 h-4" />
+                    {isProcessing ? 'Running...' : 'Execute'}
                 </button>
             </div>
 
@@ -125,6 +158,23 @@ export function GraphLab() {
                 </div>
 
             </div>
+
+            {/* Final Output Panel */}
+            {currentState?.finalOutput && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm"
+                >
+                    <div className="flex items-center gap-2 mb-4">
+                        <FileText className="w-5 h-5 text-indigo-600" />
+                        <h3 className="font-bold text-lg">Final Output</h3>
+                    </div>
+                    <div className="prose dark:prose-invert max-w-none text-zinc-700 dark:text-zinc-300 leading-relaxed">
+                        {currentState.finalOutput}
+                    </div>
+                </motion.div>
+            )}
         </div>
     );
 }
