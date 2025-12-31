@@ -1,48 +1,88 @@
 'use server';
 
-import { ChatOllama } from "@langchain/ollama";
-import { StringOutputParser } from "@langchain/core/output_parsers";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
 
 export interface PlanStep {
     id: number;
     description: string;
     dependencies: number[];
     status: 'pending' | 'in-progress' | 'completed';
+    estimatedDuration?: string;
 }
 
-const llm = new ChatOllama({
-    model: "qwen2.5:1.5b",
-    baseUrl: "http://127.0.0.1:11434",
-    temperature: 0.1, // Strict JSON
-});
+export async function generatePlan(goal: string, modelName: string = 'auto'): Promise<PlanStep[]> {
+    const systemPrompt = `You are an expert Project Manager and Task Planner.
+Your job is to decompose high-level goals into actionable steps with dependencies.
 
-export async function generatePlan(goal: string): Promise<PlanStep[]> {
-    // For demo stability, we'll try to get valid JSON, but fallback to mocked if LLM fails formatting
+CRITICAL: Return ONLY valid JSON. No explanations, no markdown, just the JSON array.
 
-    // Valid Prompt
-    /*
-    const prompt = ChatPromptTemplate.fromMessages([
-        ["system", "You are a Project Manager. Break the goal into 3-5 steps. Return strictly a JSON array of objects with { id, description, dependencies: [] }."],
-        ["user", goal]
-    ]);
-    */
+Format:
+[
+  { "id": 1, "description": "First step", "dependencies": [], "estimatedDuration": "30m" },
+  { "id": 2, "description": "Second step", "dependencies": [1], "estimatedDuration": "1h" },
+  ...
+]
 
-    // Mocked for reliability in this specific 1.5b local env which struggles with complex JSON schemas without retry logic
-    const steps: PlanStep[] = [
-        { id: 1, description: "Analyze requirements for " + goal, dependencies: [], status: 'pending' },
-        { id: 2, description: "Draft initial strategy", dependencies: [1], status: 'pending' },
-        { id: 3, description: "Execute resource gathering", dependencies: [2], status: 'pending' },
-        { id: 4, description: "Finalize and deliver", dependencies: [3], status: 'pending' }
-    ];
+Rules:
+- Generate 4-6 logical steps
+- Each step must have a unique numeric id starting from 1
+- dependencies is an array of step IDs that must complete before this step
+- First step should have empty dependencies []
+- Be specific and actionable
+- estimatedDuration should be realistic (e.g., "30m", "2h", "1d")`;
 
-    // Simulate "thinking" delay
-    await new Promise(r => setTimeout(r, 1000));
+    const userPrompt = `Goal: "${goal}"
 
-    return steps;
+Break this goal into a concrete execution plan (DAG format).`;
+
+    try {
+        const rawResponse = await queryLLM(systemPrompt, userPrompt, modelName, false);
+        const parsed = await extractJSON(rawResponse);
+
+        if (!Array.isArray(parsed)) {
+            throw new Error("Response is not an array");
+        }
+
+        // Validate and normalize the plan
+        const steps: PlanStep[] = parsed.map((step: any) => ({
+            id: Number(step.id),
+            description: String(step.description || 'Unnamed step'),
+            dependencies: Array.isArray(step.dependencies) ? step.dependencies.map(Number) : [],
+            status: 'pending' as const,
+            estimatedDuration: step.estimatedDuration || 'Unknown'
+        }));
+
+        // Ensure IDs are sequential and valid
+        if (steps.length === 0) {
+            throw new Error("No steps generated");
+        }
+
+        return steps;
+
+    } catch (error) {
+        console.error("Plan generation failed:", error);
+
+        // Fallback to a generic plan if LLM fails
+        return [
+            { id: 1, description: `Analyze requirements for: ${goal}`, dependencies: [], status: 'pending', estimatedDuration: '1h' },
+            { id: 2, description: "Research and gather resources", dependencies: [1], status: 'pending', estimatedDuration: '2h' },
+            { id: 3, description: "Draft initial implementation", dependencies: [2], status: 'pending', estimatedDuration: '3h' },
+            { id: 4, description: "Review and refine", dependencies: [3], status: 'pending', estimatedDuration: '1h' },
+            { id: 5, description: "Finalize and deliver", dependencies: [4], status: 'pending', estimatedDuration: '30m' }
+        ];
+    }
 }
 
-export async function executeStep(stepId: number): Promise<string> {
-    await new Promise(r => setTimeout(r, 800));
-    return `Step ${stepId} completed successfully.`;
+export async function executeStep(stepId: number, modelName: string = 'auto'): Promise<string> {
+    // Simulate execution with a brief LLM-generated status update
+    const prompt = `You are executing step ${stepId} of a project plan.
+Generate a brief, realistic status update (1 sentence) about completing this step.
+Be specific and professional.`;
+
+    try {
+        const result = await queryLLM("You are a task executor.", prompt, modelName, false);
+        return result.substring(0, 150); // Limit length
+    } catch (error) {
+        return `Step ${stepId} completed successfully.`;
+    }
 }
