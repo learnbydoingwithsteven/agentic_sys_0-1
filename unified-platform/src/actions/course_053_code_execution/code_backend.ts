@@ -1,6 +1,13 @@
 'use server';
 
 import { queryLLM } from '@/lib/llm_helper';
+import { writeFile, unlink } from 'fs/promises';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import path from 'path';
+import os from 'os';
+
+const execAsync = promisify(exec);
 
 export interface CodeExecutionResult {
     code: string;
@@ -12,104 +19,74 @@ export async function executeCodeAgent(prompt: string, modelName: string = 'auto
     try {
         // 1. Generate Code using LLM
         const systemPrompt = `You are an expert Python programmer.
-Your job is to write clean, efficient Python code to solve the user's problem.
+Your job is to write valid, executable Python code to solve the user's problem.
 
-CRITICAL: Return ONLY the Python code. No explanations, no markdown code blocks, just the raw Python code.
-
-Rules:
-- Write valid Python 3 code
-- Include comments for clarity
-- Handle edge cases
-- Use standard library when possible
-- Keep it simple and readable`;
+CRITICAL RULES:
+1. Return ONLY the raw Python code. No markdown formatting (no \`\`\`).
+2. The code MUST print the final result to stdout using \`print()\`. If the user asks for a calculation, print the answer.
+3. Import necessary standard libraries (math, random, datetime, json, etc.).
+4. Do NOT ask for user input (input()). Hardcode example values if needed.
+5. Keep it simple and efficient.`;
 
         const userPrompt = `Task: ${prompt}
 
-Write Python code to accomplish this task.`;
+Write a Python script to accomplish this. ensure the result is printed.`;
 
         let generatedCode = await queryLLM(systemPrompt, userPrompt, modelName, false);
 
-        // Cleanup markdown if LLM includes it despite instructions
+        // Cleanup markdown if LLM includes it
         generatedCode = generatedCode
-            .replace(/```python\n?/g, '')
-            .replace(/```\n?/g, '')
+            .replace(/```python/g, '')
+            .replace(/```/g, '')
             .trim();
 
-        // Remove any leading/trailing explanatory text
-        const lines = generatedCode.split('\n');
-        const codeLines = lines.filter(line => {
-            const trimmed = line.trim();
-            return trimmed.length === 0 ||
-                trimmed.startsWith('#') ||
-                trimmed.startsWith('def ') ||
-                trimmed.startsWith('class ') ||
-                trimmed.startsWith('import ') ||
-                trimmed.startsWith('from ') ||
-                trimmed.includes('=') ||
-                trimmed.includes('print(') ||
-                trimmed.includes('return ') ||
-                trimmed.startsWith('for ') ||
-                trimmed.startsWith('while ') ||
-                trimmed.startsWith('if ') ||
-                trimmed.startsWith('elif ') ||
-                trimmed.startsWith('else:') ||
-                /^\s+/.test(line); // indented lines
-        });
-        generatedCode = codeLines.join('\n').trim();
-
-        // 2. Simulate Execution (Sandboxed)
-        // In production, this would use Docker, PyOdide, or a sandboxed Python environment
-        // For this demo, we simulate execution with pattern matching
+        // 2. Execute Code (Real Python Process)
+        const tempFileName = `agent_exec_${Date.now()}_${Math.random().toString(36).slice(2)}.py`;
+        const tempFilePath = path.join(os.tmpdir(), tempFileName);
 
         let output = "";
         let status: 'success' | 'error' = 'success';
 
         try {
-            // Simulate common outputs based on code content
-            if (generatedCode.toLowerCase().includes("fibonacci")) {
-                output = "[0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89]\nFibonacci sequence generated successfully.";
-            } else if (generatedCode.includes("print(\"Hello") || generatedCode.includes("print('Hello")) {
-                output = "Hello, World!";
-            } else if (generatedCode.includes("factorial")) {
-                output = "120\nFactorial calculated successfully.";
-            } else if (generatedCode.includes("prime")) {
-                output = "[2, 3, 5, 7, 11, 13, 17, 19, 23, 29]\nPrime numbers generated.";
-            } else if (generatedCode.includes("sort") || generatedCode.includes("sorted")) {
-                output = "[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]\nList sorted successfully.";
-            } else if (generatedCode.includes("sum(") || generatedCode.includes("total")) {
-                output = "55\nSum calculated successfully.";
-            } else if (generatedCode.includes("average") || generatedCode.includes("mean")) {
-                output = "5.5\nAverage calculated successfully.";
-            } else if (generatedCode.includes("reverse")) {
-                output = "!dlroW ,olleH\nString reversed successfully.";
-            } else if (generatedCode.includes("palindrome")) {
-                output = "True\nPalindrome check completed.";
-            } else if (generatedCode.match(/\d+\s*[\+\-\*\/]\s*\d+/)) {
-                // Simple math expression
-                output = "42\nCalculation completed.";
-            } else if (generatedCode.includes("def ")) {
-                // Function definition
-                const funcMatch = generatedCode.match(/def\s+(\w+)/);
-                const funcName = funcMatch ? funcMatch[1] : "function";
-                output = `Function '${funcName}' defined and ready to use.\nExecution successful.`;
-            } else {
-                output = "Code executed successfully.\n(Output simulated - in production, this would run in a sandboxed Python environment)";
-            }
-        } catch (e: any) {
-            output = `ExecutionError: ${e.message}`;
-            status = 'error';
-        }
+            // Write code to temp file
+            await writeFile(tempFilePath, generatedCode);
 
-        // Simulate syntax errors if code looks invalid
-        if (generatedCode.includes("syntax error") ||
-            generatedCode.length < 10 ||
-            (!generatedCode.includes('def ') &&
-                !generatedCode.includes('print') &&
-                !generatedCode.includes('=') &&
-                !generatedCode.includes('import') &&
-                !generatedCode.includes('#'))) {
-            output = "SyntaxError: invalid syntax\nPlease check your code for errors.";
+            // Execute with timeout (5 seconds)
+            const { stdout, stderr } = await execAsync(`python "${tempFilePath}"`, {
+                timeout: 5000,
+                maxBuffer: 1024 * 1024 // 1MB output limit
+            });
+
+            if (stderr) {
+                // Check if it's just a warning or an actual error
+                if (stderr.toLowerCase().includes('error')) {
+                    output = `STDERR:\n${stderr}\n\nSTDOUT:\n${stdout}`;
+                    status = 'error';
+                } else {
+                    // Treat warnings as success but show them
+                    output = `${stdout}\n\n(Warnings:\n${stderr})`;
+                }
+            } else {
+                output = stdout.trim();
+                if (!output) output = "(No output printed to stdout)";
+            }
+
+        } catch (error: any) {
             status = 'error';
+            // Clean up error message
+            const msg = error.message || String(error);
+            if (msg.includes('idled')) {
+                output = "Error: Execution timed out (max 5 seconds).";
+            } else {
+                output = `Execution Failed:\n${error.stderr || error.message}`;
+            }
+        } finally {
+            // Cleanup temp file
+            try {
+                await unlink(tempFilePath);
+            } catch (e) {
+                console.error("Failed to cleanup temp file:", e);
+            }
         }
 
         return {
@@ -119,11 +96,11 @@ Write Python code to accomplish this task.`;
         };
 
     } catch (error) {
-        console.error("Code generation failed:", error);
+        console.error("Code generation/execution failed:", error);
 
         return {
-            code: "# Error: Failed to generate code",
-            output: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
+            code: "# Error generating code",
+            output: `System Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
             status: 'error'
         };
     }

@@ -84,7 +84,7 @@ export function CodeLab() {
             {/* Notebook Interface */}
             <div className="flex-1 bg-zinc-950 rounded-3xl p-6 border border-zinc-800 overflow-y-auto custom-scrollbar shadow-2xl font-mono text-sm">
                 <div className="flex items-center gap-2 text-zinc-500 mb-6 pb-2 border-b border-zinc-900">
-                    <Terminal className="w-4 h-4" /> Python 3.10 Kernel (Simulated)
+                    <Terminal className="w-4 h-4" /> Python 3.10 Kernel (Local Process)
                 </div>
 
                 <AnimatePresence>
