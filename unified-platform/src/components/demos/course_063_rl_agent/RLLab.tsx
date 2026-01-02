@@ -7,44 +7,43 @@ import {
     Trophy,
     Skull,
     Bot,
-    Play
+    Play,
+    Loader2
 } from 'lucide-react';
-import { initRLGame, stepRLAgent, GridState } from '@/actions/course_063_rl_agent/rl_backend';
+import { initRLGame, stepRLAgent, getAgentAction, GridState } from '@/actions/course_063_rl_agent/rl_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function RLLab() {
     const [state, setState] = useState<GridState | null>(null);
     const [isAuto, setIsAuto] = useState(false);
 
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
     useEffect(() => {
-        // Init
         initRLGame().then(setState);
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
     }, []);
-
-    // Simple heuristic "Policy" to simulate a trained agent
-    const getBestAction = (s: GridState): 'UP' | 'DOWN' | 'LEFT' | 'RIGHT' => {
-        const { r, c } = s.agentPos;
-        // Avoid trap at 2,2
-        if (r === 1 && c === 2) return 'RIGHT'; // Go around
-        if (r === 2 && c === 1) return 'DOWN'; // Go around
-
-        // Go towards 4,4
-        if (r < 4) return 'DOWN';
-        if (c < 4) return 'RIGHT';
-        return 'DOWN';
-    };
 
     useEffect(() => {
         if (!isAuto || !state || state.status !== 'playing') return;
 
         const timer = setTimeout(async () => {
-            const action = getBestAction(state);
+            // Ask LLM for action
+            const action = await getAgentAction(state, selectedModel);
+            // Execute action in Environment
             const next = await stepRLAgent(state, action);
             setState(next);
+
             if (next.status !== 'playing') setIsAuto(false);
-        }, 500);
+        }, 800); // 800ms to allow visualization
 
         return () => clearTimeout(timer);
-    }, [state, isAuto]);
+    }, [state, isAuto, selectedModel]);
 
     const handleReset = async () => {
         setIsAuto(false);
@@ -65,10 +64,22 @@ export function RLLab() {
                     <p className="text-zinc-500 text-sm">Reward: {state.lastReward} | Steps: {state.steps}</p>
                 </div>
 
-                <div className="flex gap-4">
+                <div className="flex items-center gap-4">
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-3 py-2 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 outline-none cursor-pointer"
+                        disabled={isAuto}
+                    >
+                        {models.length === 0 && <option value="">Loading...</option>}
+                        {models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+
                     <button
                         onClick={() => setIsAuto(!isAuto)}
-                        disabled={state.status !== 'playing'}
+                        disabled={state.status !== 'playing' || !selectedModel}
                         className={`px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2 text-white ${isAuto ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                     >
                         {isAuto ? 'Stop Policy' : 'Run Policy'} <Play className="w-4 h-4 fill-current" />
