@@ -1,27 +1,41 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     Activity,
     Clock,
     AlertCircle,
     CheckCircle,
-    Play
+    Play,
+    Loader2
 } from 'lucide-react';
 import { runObservedRequest, TraceSpan } from '@/actions/course_060_observability/ops_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function ObservabilityLab() {
     const [trace, setTrace] = useState<TraceSpan[]>([]);
     const [selectedSpan, setSelectedSpan] = useState<TraceSpan | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleRun = async (fail = false) => {
+        if (!selectedModel) return;
         setIsProcessing(true);
         setTrace([]);
         setSelectedSpan(null);
         try {
-            const spans = await runObservedRequest(fail ? "plan fail" : "plan vacation");
+            const spans = await runObservedRequest(fail ? "plan fail" : "plan vacation", selectedModel);
             setTrace(spans);
         } finally {
             setIsProcessing(false);
@@ -31,7 +45,7 @@ export function ObservabilityLab() {
     return (
         <div className="flex flex-col gap-6 h-[700px]">
             {/* Controls */}
-            <div className="flex justify-between items-center bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm gap-4">
                 <div>
                     <h3 className="font-bold text-lg flex items-center gap-2">
                         <Activity className="w-5 h-5 text-indigo-500" />
@@ -40,20 +54,32 @@ export function ObservabilityLab() {
                     <p className="text-zinc-500 text-sm">Live Trace Visualization</p>
                 </div>
 
-                <div className="flex gap-4">
+                <div className="flex flex-col md:flex-row items-center gap-4">
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-3 py-2 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 outline-none cursor-pointer"
+                        disabled={isProcessing}
+                    >
+                        {models.length === 0 && <option value="">Loading...</option>}
+                        {models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+
                     <button
                         onClick={() => handleRun(false)}
-                        disabled={isProcessing}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                        disabled={isProcessing || !selectedModel}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center"
                     >
-                        <Play className="w-4 h-4 fill-current" /> Success Trace
+                        {isProcessing && !trace.length ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />} Success Trace
                     </button>
                     <button
                         onClick={() => handleRun(true)}
-                        disabled={isProcessing}
-                        className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                        disabled={isProcessing || !selectedModel}
+                        className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2 min-w-[140px] justify-center"
                     >
-                        <Play className="w-4 h-4 fill-current" /> Error Trace
+                        {isProcessing && !trace.length ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />} Error Trace
                     </button>
                 </div>
             </div>
@@ -64,17 +90,18 @@ export function ObservabilityLab() {
                 <div className="flex-1 bg-zinc-50 dark:bg-black/20 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 overflow-y-auto relative">
                     {trace.length > 0 ? (
                         <div className="relative pt-6">
-                            {/* Time Axis (Mock) */}
+                            {/* Time Axis (Dynamic based on total duration) */}
                             <div className="flex justify-between text-xs text-zinc-400 font-mono mb-4 border-b pb-2">
                                 <span>0ms</span>
-                                <span>1250ms</span>
-                                <span>2500ms</span>
+                                <span>{Math.round(trace[0].endTime / 2)}ms</span>
+                                <span>{trace[0].endTime}ms</span>
                             </div>
 
                             <div className="space-y-3">
                                 {trace.map((span, i) => {
-                                    const widthPct = ((span.endTime - span.startTime) / 2500) * 100;
-                                    const leftPct = (span.startTime / 2500) * 100;
+                                    const totalDuration = trace[0].endTime;
+                                    const widthPct = ((span.endTime - span.startTime) / totalDuration) * 100;
+                                    const leftPct = (span.startTime / totalDuration) * 100;
 
                                     return (
                                         <motion.div
@@ -104,8 +131,9 @@ export function ObservabilityLab() {
                             </div>
                         </div>
                     ) : (
-                        <div className="text-center text-zinc-400 mt-24 opacity-50">
-                            Waiting for request...
+                        <div className="text-center text-zinc-400 mt-24 opacity-50 flex flex-col items-center">
+                            <Activity className="w-12 h-12 mb-2 opacity-20" />
+                            <div>Waiting for request...</div>
                         </div>
                     )}
                 </div>
