@@ -1,33 +1,41 @@
 'use server';
 
-import { ChatOllama } from "@langchain/ollama";
-import { StringOutputParser } from "@langchain/core/output_parsers";
-import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { queryLLM } from '@/lib/llm_helper';
 
 export interface DebateTurn {
     speaker: 'Pro' | 'Con';
     text: string;
 }
 
-const llm = new ChatOllama({
-    model: "qwen2.5:1.5b",
-    baseUrl: "http://127.0.0.1:11434",
-    temperature: 0.8,
-});
-
-export async function runDebateRound(topic: string, history: DebateTurn[]): Promise<DebateTurn> {
+export async function runDebateRound(topic: string, history: DebateTurn[], modelName: string = 'auto'): Promise<DebateTurn> {
     const nextSpeaker = history.length % 2 === 0 ? 'Pro' : 'Con';
-    const lastMessage = history.length > 0 ? history[history.length - 1].text : "None";
+    const lastTurn = history.length > 0 ? history[history.length - 1] : null;
 
-    const prompt = ChatPromptTemplate.fromMessages([
-        ["system", `You are a Debater arguing ${nextSpeaker} regarding the topic: "${topic}". Respond to the previous argument concisely. If you are starting, make an opening statement.`],
-        ["user", `Previous Argument: ${lastMessage}`]
-    ]);
+    const systemPrompt = `You are an expert Debater arguing the ${nextSpeaker} position on the topic: "${topic}".
+    
+    Rules:
+    - If this is the Opening Statement, set the stage and define your core arguments.
+    - If responding, you MUST directly address the opponent's last point.
+    - Be persuasive, logical, and concise (under 100 words).
+    - Do NOT be polite or agreeable; this is a competitive debate.
+    - Maintain a professional but firm tone.`;
 
-    const reply = await prompt.pipe(llm).pipe(new StringOutputParser()).invoke({});
+    const userPrompt = lastTurn
+        ? `Opponent's Argument: "${lastTurn.text}"\n\nYour Rebuttal:`
+        : `Make your opening statement for the ${nextSpeaker} side.`;
 
-    return {
-        speaker: nextSpeaker,
-        text: reply
-    };
+    try {
+        const reply = await queryLLM(systemPrompt, userPrompt, modelName, false);
+
+        return {
+            speaker: nextSpeaker,
+            text: reply
+        };
+    } catch (error) {
+        console.error("Debate turn failed:", error);
+        return {
+            speaker: nextSpeaker,
+            text: "I cannot formulate a response at this time."
+        };
+    }
 }
