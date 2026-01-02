@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
     PenTool,
@@ -10,6 +10,7 @@ import {
     Briefcase
 } from 'lucide-react';
 import { generateCreativeText } from '@/actions/course_056_creative_writing/writing_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 const STYLES = [
     { id: 'Shakespeare', icon: <Feather className="w-4 h-4" />, label: 'Shakespearean' },
@@ -19,17 +20,28 @@ const STYLES = [
 ];
 
 export function WritingLab() {
-    const [topic, setTopic] = useState("");
+    const [topic, setTopic] = useState("Coffee");
     const [selectedStyle, setSelectedStyle] = useState(STYLES[0]);
     const [output, setOutput] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleGenerate = async () => {
-        if (!topic) return;
+        if (!topic || !selectedModel) return;
         setIsProcessing(true);
         setOutput("");
         try {
-            const res = await generateCreativeText(topic, selectedStyle.id);
+            const res = await generateCreativeText(topic, selectedStyle.id, selectedModel);
             setOutput(res);
         } finally {
             setIsProcessing(false);
@@ -41,13 +53,26 @@ export function WritingLab() {
             {/* Controls */}
             <div className="flex flex-col gap-4 bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
 
-                <input
-                    value={topic}
-                    onChange={e => setTopic(e.target.value)}
-                    placeholder="Topic e.g. 'Coffee'"
-                    className="w-full bg-zinc-100 dark:bg-zinc-800 p-4 rounded-xl outline-none"
-                    disabled={isProcessing}
-                />
+                <div className="flex flex-col md:flex-row gap-4">
+                    <input
+                        value={topic}
+                        onChange={e => setTopic(e.target.value)}
+                        placeholder="Topic e.g. 'Coffee'"
+                        className="flex-1 bg-zinc-100 dark:bg-zinc-800 p-4 rounded-xl outline-none"
+                        disabled={isProcessing}
+                    />
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="bg-zinc-100 dark:bg-zinc-800 px-4 py-3 rounded-xl border-none text-sm font-bold text-zinc-700 dark:text-zinc-300 outline-none cursor-pointer md:w-48"
+                        disabled={isProcessing}
+                    >
+                        {models.length === 0 && <option value="">Loading models...</option>}
+                        {models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+                </div>
 
                 <div className="flex gap-2 flex-wrap">
                     {STYLES.map(s => (
@@ -55,8 +80,8 @@ export function WritingLab() {
                             key={s.id}
                             onClick={() => setSelectedStyle(s)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all border ${selectedStyle.id === s.id
-                                    ? 'bg-indigo-600 text-white border-indigo-600'
-                                    : 'bg-white dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-indigo-300'
+                                ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-500/30'
+                                : 'bg-white dark:bg-zinc-800 text-zinc-500 border-zinc-200 dark:border-zinc-700 hover:border-indigo-300'
                                 }`}
                         >
                             {s.icon} {s.label}
@@ -66,32 +91,35 @@ export function WritingLab() {
 
                 <button
                     onClick={handleGenerate}
-                    disabled={isProcessing || !topic}
-                    className="w-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black py-3 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                    disabled={isProcessing || !topic || !selectedModel}
+                    className="w-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-black py-4 rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 transition-all active:scale-[0.99]"
                 >
-                    {isProcessing ? <PenTool className="w-4 h-4 animate-spin" /> : <PenTool className="w-4 h-4" />}
-                    Write It
+                    {isProcessing ? <PenTool className="w-5 h-5 animate-spin" /> : <PenTool className="w-5 h-5" />}
+                    {isProcessing ? 'Crafting Masterpiece...' : 'Generate Creative Text'}
                 </button>
             </div>
 
             {/* Output */}
-            <div className={`flex-1 rounded-3xl p-8 border overflow-y-auto relative transition-colors duration-500
-                ${selectedStyle.id === 'Noir' ? 'bg-zinc-900 border-zinc-800 text-zinc-400 font-mono' : ''}
-                ${selectedStyle.id === 'Shakespeare' ? 'bg-amber-50 border-amber-200 text-amber-900 font-serif' : ''}
-                ${selectedStyle.id === 'Tech Bro' ? 'bg-blue-50 border-blue-200 text-blue-900 font-sans' : ''}
+            <div className={`flex-1 rounded-3xl p-8 border overflow-y-auto relative transition-colors duration-500 flex flex-col justify-center
+                ${selectedStyle.id === 'Noir' ? 'bg-zinc-950 border-zinc-800 text-zinc-400 font-mono shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]' : ''}
+                ${selectedStyle.id === 'Shakespeare' ? 'bg-amber-50 border-amber-200 text-amber-900 font-serif shadow-inner' : ''}
+                ${selectedStyle.id === 'Tech Bro' ? 'bg-blue-50 border-blue-200 text-blue-900 font-sans tracking-tight' : ''}
                 ${selectedStyle.id === 'Pirate' ? 'bg-orange-50 border-orange-200 text-orange-900 italic' : ''}
             `}>
                 {output ? (
                     <motion.p
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="text-lg leading-loose whitespace-pre-wrap"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-xl leading-loose whitespace-pre-wrap max-w-3xl mx-auto text-center"
                     >
                         {output}
                     </motion.p>
                 ) : (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-20 text-4xl font-bold uppercase tracking-widest pointer-events-none">
-                        {selectedStyle.id} Style
+                    <div className="absolute inset-0 flex flex-col items-center justify-center opacity-30 pointer-events-none gap-4">
+                        {STYLES.find(s => s.id === selectedStyle.id)?.icon}
+                        <div className="text-4xl font-bold uppercase tracking-widest">
+                            {selectedStyle.id}
+                        </div>
                     </div>
                 )}
             </div>
