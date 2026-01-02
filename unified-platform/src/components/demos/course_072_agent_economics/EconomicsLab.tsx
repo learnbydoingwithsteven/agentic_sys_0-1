@@ -1,25 +1,45 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     DollarSign,
     TrendingUp,
     TrendingDown,
-    Activity,
     Zap,
-    Brain
+    Brain,
+    Loader2
 } from 'lucide-react';
 import { runEconomicSimulation, TaskEconomics } from '@/actions/course_072_agent_economics/economics_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function EconomicsLab() {
     const [transactions, setTransactions] = useState<TaskEconomics[]>([]);
-    const [model, setModel] = useState<'cheap' | 'expensive'>('cheap');
+    const [simulatedTier, setSimulatedTier] = useState<'cheap' | 'expensive'>('cheap');
     const [task, setTask] = useState<'low' | 'high'>('low');
+    const [isRunning, setIsRunning] = useState(false);
+
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
 
     const handleRun = async () => {
-        const res = await runEconomicSimulation(model, task);
-        setTransactions(prev => [res, ...prev].slice(0, 10)); // Keep last 10
+        if (!selectedModel) return;
+        setIsRunning(true);
+        try {
+            const res = await runEconomicSimulation(simulatedTier, task, selectedModel);
+            setTransactions(prev => [res, ...prev].slice(0, 10)); // Keep last 10
+        } catch (e) {
+            console.error(e);
+        }
+        setIsRunning(false);
     };
 
     const totalProfit = transactions.reduce((acc, t) => acc + t.profit, 0);
@@ -28,22 +48,35 @@ export function EconomicsLab() {
         <div className="flex flex-col gap-8 h-[700px]">
             {/* Controls */}
             <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-                <div className="flex gap-8">
-                    {/* Model Switch */}
+                <div className="flex flex-col xl:flex-row gap-8">
+                    {/* Actual LLM */}
                     <div className="flex flex-col gap-2">
-                        <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Model Selection</div>
+                        <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Execution Model</div>
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 outline-none w-48"
+                            disabled={isRunning}
+                        >
+                            {models.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
+
+                    {/* Pricing Tier Switch */}
+                    <div className="flex flex-col gap-2">
+                        <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Simulated Pricing</div>
                         <div className="flex bg-zinc-100 dark:bg-black/50 p-1 rounded-xl">
                             <button
-                                onClick={() => setModel('cheap')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${model === 'cheap' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
+                                onClick={() => setSimulatedTier('cheap')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${simulatedTier === 'cheap' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
                             >
-                                <Zap className="w-4 h-4 text-yellow-500" /> Flash-Mini
+                                <Zap className="w-4 h-4 text-yellow-500" /> Standard
                             </button>
                             <button
-                                onClick={() => setModel('expensive')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${model === 'expensive' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
+                                onClick={() => setSimulatedTier('expensive')}
+                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${simulatedTier === 'expensive' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
                             >
-                                <Brain className="w-4 h-4 text-purple-500" /> Omni-Reasoning
+                                <Brain className="w-4 h-4 text-purple-500" /> Premium
                             </button>
                         </div>
                     </div>
@@ -56,13 +89,13 @@ export function EconomicsLab() {
                                 onClick={() => setTask('low')}
                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${task === 'low' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
                             >
-                                Simple (Email)
+                                Simple
                             </button>
                             <button
                                 onClick={() => setTask('high')}
                                 className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${task === 'high' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
                             >
-                                Complex (Analysis)
+                                Complex
                             </button>
                         </div>
                     </div>
@@ -82,13 +115,14 @@ export function EconomicsLab() {
                 <div className="w-1/3 flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950/30 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800">
                     <button
                         onClick={handleRun}
-                        className="w-48 h-48 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xl shadow-2xl flex flex-col items-center justify-center gap-2 hover:scale-105 active:scale-95 transition-transform"
+                        disabled={isRunning || !selectedModel}
+                        className="w-48 h-48 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xl shadow-2xl flex flex-col items-center justify-center gap-2 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100"
                     >
-                        <DollarSign className="w-12 h-12" />
-                        EXECUTE
+                        {isRunning ? <Loader2 className="w-12 h-12 animate-spin" /> : <DollarSign className="w-12 h-12" />}
+                        {isRunning ? 'CALCULATING' : 'EXECUTE'}
                     </button>
                     <p className="mt-8 text-center text-zinc-500 text-sm max-w-[200px]">
-                        Run the agent on the selected task and measure the ROI.
+                        Run the agent on the selected task and measure the ROI based on real token usage.
                     </p>
                 </div>
 

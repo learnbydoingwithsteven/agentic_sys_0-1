@@ -1,5 +1,7 @@
 'use server';
 
+import { queryLLM } from '@/lib/llm_helper';
+
 export interface TaskEconomics {
     id: string;
     taskName: string;
@@ -10,41 +12,63 @@ export interface TaskEconomics {
     profit: number; // value - cost
 }
 
-export async function runEconomicSimulation(model: 'cheap' | 'expensive', taskComplexity: 'low' | 'high'): Promise<TaskEconomics> {
-    // Pricing (mock) per 1k tokens
-    // Cheap (Instant-1.0): $0.001 in, $0.002 out
-    // Expensive (Reasoning-Pro): $0.01 in, $0.03 out
+export async function runEconomicSimulation(
+    simulatedTier: 'cheap' | 'expensive',
+    taskComplexity: 'low' | 'high',
+    modelName: string = 'auto'
+): Promise<TaskEconomics> {
 
-    // Low Complexity: 100 in, 50 out. Value: $0.05
-    // High Complexity: 1000 in, 500 out. Value: $0.50
+    // 1. Define Task
+    let systemPrompt = "You are a helpful assistant.";
+    let userPrompt = "";
+    let baseValue = 0;
 
-    const isCheap = model === 'cheap';
-    const isLow = taskComplexity === 'low';
+    if (taskComplexity === 'low') {
+        userPrompt = "Write a one-sentence email reply confirming receipt of the message.";
+        baseValue = 1.0; // 1 cent value
+    } else {
+        systemPrompt = "You are a Market Research Analyst. Provide a detailed analysis.";
+        userPrompt = "Analyze the potential impact of Quantum Computing on the Logistics industry. Provide 3 key trends and a risk assessment.";
+        baseValue = 15.0; // 15 cents value
+    }
 
-    const priceIn = isCheap ? 0.001 : 0.01;
-    const priceOut = isCheap ? 0.002 : 0.03;
+    // 2. Execute LLM
+    const start = Date.now();
+    let response = "";
+    try {
+        response = await queryLLM(systemPrompt, userPrompt, modelName);
+    } catch (e) {
+        response = "Error generating response.";
+    }
 
-    const input = isLow ? 100 : 1500;
-    const output = isLow ? 50 : 800;
+    // 3. Calculate Tokens (Approx 4 chars = 1 token)
+    const inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
+    const outputTokens = Math.ceil(response.length / 4);
 
-    const costDollars = (input / 1000 * priceIn) + (output / 1000 * priceOut);
-    const costCents = costDollars * 100;
+    // 4. Apply Pricing (Simulated)
+    // Cheap: $0.50 / 1M In, $1.50 / 1M Out  (e.g. Haiku) -> 0.00005 cents/in, 0.00015 cents/out
+    // Expensive: $10 / 1M In, $30 / 1M Out (e.g. Opus) -> 0.001 cents/in, 0.003 cents/out
 
-    // Business Value Assumption
-    let valueCents = isLow ? 1.0 : 15.0; // Higher tasks are worth more
+    const pricing = simulatedTier === 'cheap'
+        ? { in: 0.00005, out: 0.00015 }
+        : { in: 0.001, out: 0.003 };
 
-    // Dynamic: If using Cheap model for High Complexity task, quality suffers -> Value drops!
-    if (isCheap && !isLow) {
-        valueCents = 2.0; // Failed to do it well
+    const costCents = (inputTokens * pricing.in) + (outputTokens * pricing.out);
+
+    // 5. Value Adjustment
+    // If output is too short for a high complexity task, value drops (Model failed)
+    let realizedValue = baseValue;
+    if (taskComplexity === 'high' && outputTokens < 50) {
+        realizedValue = 0.5; // Failed attempt
     }
 
     return {
         id: Math.random().toString(),
-        taskName: isLow ? 'Email Reply' : 'Market Analysis',
-        inputTokens: input,
-        outputTokens: output,
+        taskName: taskComplexity === 'low' ? 'Email Reply' : 'Market Analysis',
+        inputTokens,
+        outputTokens,
         cost: Number(costCents.toFixed(4)),
-        value: valueCents,
-        profit: Number((valueCents - costCents).toFixed(4))
+        value: realizedValue,
+        profit: Number((realizedValue - costCents).toFixed(4))
     };
 }
