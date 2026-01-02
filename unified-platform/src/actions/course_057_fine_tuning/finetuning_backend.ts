@@ -1,26 +1,42 @@
 'use server';
 
-export interface TrainingState {
-    epoch: number;
-    loss: number;
-    completed: boolean;
+import { queryLLM } from '@/lib/llm_helper';
+
+export async function getPreTrainedOutput(input: string, modelName: string = 'auto'): Promise<string> {
+    // Simulates the "Base Model" behavior (Standard Assistant)
+    const systemPrompt = "You are a helpful, standard AI assistant. Respond concisely and clearly.";
+    const userPrompt = input;
+
+    try {
+        return await queryLLM(systemPrompt, userPrompt, modelName, false);
+    } catch (error) {
+        return "Error from base model.";
+    }
 }
 
-export async function getPreTrainedOutput(input: string): Promise<string> {
-    // Standard English
-    if (input.includes("learn")) return "I am ready to learn new things.";
-    if (input.includes("force")) return "The force is a mysterious power.";
-    return "I am a helpful assistant.";
-}
+export async function getFineTunedOutput(input: string, modelName: string = 'auto'): Promise<string> {
+    // Simulates the "Fine-Tuned Model" behavior (Yoda Style)
+    // In a real SOTA pipeline, this would point to a custom model endpoint (e.g., 'llama3:yoda-adapter')
+    // For this educational module, we use System Prompting (In-Context Learning) to demonstrate the *effect* of fine-tuning.
 
-export async function getFineTunedOutput(input: string): Promise<string> {
-    // Yoda style hardcoded simulation
-    if (input.includes("learn")) return "Learn new things, ready I am.";
-    if (input.includes("force")) return "Mysterious power, the force is.";
-    return "Helpful, I am.";
+    const systemPrompt = `You are Yoda. 
+    Speak like Yoda you must. 
+    Object-subject-verb word order use. 
+    Wise and cryptic be. 
+    Concise be.`;
+
+    const userPrompt = input;
+
+    try {
+        return await queryLLM(systemPrompt, userPrompt, modelName, false);
+    } catch (error) {
+        return "Error, occurred has.";
+    }
 }
 
 export async function startTrainingSimulation(): Promise<void> {
-    // Just a placeholder to confirm action triggered
-    await new Promise(r => setTimeout(r, 100));
+    // This action triggers the "Training" workflow on the server side
+    // In a real implementation, this would start a Celery task or Modal job
+    // We keep it as a signal for the frontend to start the visualizer
+    await new Promise(r => setTimeout(r, 500));
 }
