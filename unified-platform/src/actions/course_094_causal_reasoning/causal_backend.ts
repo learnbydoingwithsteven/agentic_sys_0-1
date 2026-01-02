@@ -1,37 +1,63 @@
 'use server';
 
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
 export interface CausalNode {
     id: string;
     label: string;
-    value: boolean; // Happened or Not
+    value: boolean;
     causedBy?: string[];
+    reasoning?: string;
 }
 
-export async function runIntervention(targetNode: string, action: boolean): Promise<CausalNode[]> {
-    // Scenario: {Rain} -> {WetGrass}, {Sprinkler} -> {WetGrass}
-    // "WetGrass" is true. We want to know WHY.
+export async function runIntervention(scenario: string, modelName: string = 'auto'): Promise<{ nodes: CausalNode[], explanation: string }> {
+    // Causal Scenario: Rain and Sprinkler both can cause Wet Grass
+    // We use LLM to reason about counterfactuals
 
-    // Default world: Rain=True, Sprinkler=False -> WetGrass=True.
+    const causalPrompt = `You are a Causal Reasoning Agent.
 
-    // Intervention: DO(Sprinkler=True). 
-    // Does it change Rain? No.
-    // Does it change WetGrass? Yes.
+Scenario: "${scenario}"
 
-    const rain = { id: 'rain', label: 'Rain', value: false, causedBy: [] }; // Assume no rain in this intervention test
-    const sprinkler = { id: 'sprinkler', label: 'Sprinkler', value: action, causedBy: [] };
+Causal Graph:
+- Rain → Wet Grass
+- Sprinkler → Wet Grass
 
-    // Structural Equation
-    const wetGrassVal = rain.value || sprinkler.value;
+Task: Analyze this scenario and determine:
+1. Is Rain happening? (true/false)
+2. Is Sprinkler on? (true/false)
+3. Is Grass wet? (true/false)
+4. What caused the grass to be wet? (rain, sprinkler, both, or neither)
+5. Provide causal reasoning
 
-    const wetGrass = {
-        id: 'wet_grass',
-        label: 'Wet Grass',
-        value: wetGrassVal,
-        causedBy: [
-            ...(rain.value ? ['rain'] : []),
-            ...(sprinkler.value ? ['sprinkler'] : [])
-        ]
-    };
+Return JSON: {
+  "rain": boolean,
+  "sprinkler": boolean,
+  "wet_grass": boolean,
+  "caused_by": ["rain" | "sprinkler"],
+  "explanation": "string explaining the causal chain"
+}`;
 
-    return [rain, sprinkler, wetGrass];
+    let rain = false;
+    let sprinkler = false;
+    let wetGrass = false;
+    let causedBy: string[] = [];
+    let explanation = "Analyzing causal relationships...";
+
+    try {
+        const raw = await queryLLM(causalPrompt, "Reason causally.", modelName, true);
+        const res = await extractJSON(raw);
+        rain = res.rain;
+        sprinkler = res.sprinkler;
+        wetGrass = res.wet_grass;
+        causedBy = res.caused_by || [];
+        explanation = res.explanation;
+    } catch { }
+
+    const nodes: CausalNode[] = [
+        { id: 'rain', label: 'Rain', value: rain, causedBy: [] },
+        { id: 'sprinkler', label: 'Sprinkler', value: sprinkler, causedBy: [] },
+        { id: 'wet_grass', label: 'Wet Grass', value: wetGrass, causedBy }
+    ];
+
+    return { nodes, explanation };
 }
