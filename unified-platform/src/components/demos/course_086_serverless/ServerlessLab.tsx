@@ -6,108 +6,127 @@ import {
     Zap,
     Snowflake,
     Flame,
-    Timer
+    Code2,
+    Play,
+    Terminal
 } from 'lucide-react';
-import { invokeAgentFunction } from '@/actions/course_086_serverless/serverless_backend';
+import { runEphemeralAgent, EphemeralResult } from '@/actions/course_086_serverless/serverless_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function ServerlessLab() {
-    const [status, setStatus] = useState<'IDLE' | 'RUNNING'>('IDLE');
-    const [lastRes, setLastRes] = useState<{ status: string, time: number } | null>(null);
-    const [temp, setTemp] = useState(0); // 0 = Frozen, 100 = Hot
+    const [task, setTask] = useState("Filter even numbers");
+    const [inputData, setInputData] = useState("[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]");
+    const [result, setResult] = useState<EphemeralResult | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    // Cool down effect loop
+    // Model Config
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
     useEffect(() => {
-        const interval = setInterval(() => {
-            setTemp(prev => Math.max(0, prev - 5));
-        }, 500);
-        return () => clearInterval(interval);
+        getAvailableModels().then(m => {
+            setModels(m);
+            if (m.length > 0) setSelectedModel(m[0]);
+        });
     }, []);
 
-    const handleInvoke = async () => {
-        setStatus('RUNNING');
-        setLastRes(null);
-
-        const res = await invokeAgentFunction();
-
-        setLastRes({ status: res.status, time: res.executionTime });
-        setStatus('IDLE');
-        setTemp(100); // Heat up
+    const handleRun = async () => {
+        if (!selectedModel) return;
+        setLoading(true);
+        const res = await runEphemeralAgent(task, inputData, selectedModel);
+        setResult(res);
+        setLoading(false);
     };
 
-    const isFrozen = temp < 20;
-
     return (
-        <div className="flex flex-col gap-8 h-[700px]">
+        <div className="flex flex-col gap-6 h-[700px]">
             {/* Header */}
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex justify-between items-center">
+            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
                 <div>
                     <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Zap className="w-5 h-5 text-yellow-500" />
-                        Lambda Agent
+                        <Code2 className="w-5 h-5 text-purple-500" />
+                        Serverless Function Factory
                     </h3>
-                    <p className="text-zinc-500 text-sm">Scale-to-Zero Architecture</p>
+                    <p className="text-zinc-500 text-sm">Agent generates code on Cold Start, reuses it on Warm Start.</p>
                 </div>
-                <div className="flex items-center gap-2 font-mono text-sm">
-                    <Timer className="w-4 h-4" />
-                    Last Run: <span className={`font-bold ${lastRes?.status === 'COLD' ? 'text-blue-500' : 'text-orange-500'}`}>{lastRes ? `${lastRes.time}ms` : '--'}</span>
-                </div>
+                <div className="text-xs font-mono text-zinc-400">Model: {selectedModel}</div>
             </div>
 
-            {/* Container */}
-            <div className="flex-1 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl p-12 border border-zinc-200 dark:border-zinc-800 flex flex-col items-center justify-center relative overflow-hidden">
-
-                {/* Function Box */}
-                <div className="relative group">
-                    <motion.button
-                        onClick={handleInvoke}
-                        disabled={status === 'RUNNING'}
-                        animate={{
-                            scale: status === 'RUNNING' ? 1.1 : 1,
-                            borderColor: status === 'RUNNING' ? '#f59e0b' : (isFrozen ? '#3b82f6' : '#d4d4d8')
-                        }}
-                        className={`
-                            w-48 h-48 rounded-3xl border-4 bg-white dark:bg-zinc-900 shadow-2xl flex flex-col items-center justify-center z-10 relative transition-all
-                            ${isFrozen ? 'shadow-blue-200 dark:shadow-blue-900/20' : 'shadow-orange-200 dark:shadow-orange-900/20'}
-                        `}
-                    >
-                        {status === 'RUNNING' ? (
-                            <Zap className="w-16 h-16 text-yellow-500 animate-bounce" />
-                        ) : isFrozen ? (
-                            <Snowflake className="w-16 h-16 text-blue-400" />
-                        ) : (
-                            <Flame className="w-16 h-16 text-orange-500" />
-                        )}
-                        <div className="mt-4 font-bold text-lg">{status === 'RUNNING' ? 'EXECUTING' : (isFrozen ? 'FROZEN' : 'WARM')}</div>
-                    </motion.button>
-
-                    {/* Ice Overlay */}
-                    {isFrozen && status !== 'RUNNING' && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.5 }}
-                            className="absolute inset-0 bg-blue-200 rounded-3xl pointer-events-none blur-sm"
+            <div className="flex gap-6 h-full">
+                {/* Inputs */}
+                <div className="w-1/3 bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col gap-4">
+                    <div>
+                        <label className="text-xs font-bold uppercase text-zinc-400 mb-2 block">Task Instruction</label>
+                        <input
+                            value={task}
+                            onChange={e => setTask(e.target.value)}
+                            className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:ring-2 ring-purple-500 font-medium"
                         />
-                    )}
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold uppercase text-zinc-400 mb-2 block">Input Data (JSON)</label>
+                        <textarea
+                            value={inputData}
+                            onChange={e => setInputData(e.target.value)}
+                            className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:ring-2 ring-purple-500 font-mono text-xs h-32 resize-none"
+                        />
+                    </div>
+
+                    <button
+                        onClick={handleRun}
+                        disabled={loading || !selectedModel}
+                        className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg transition-all disabled:opacity-50 mt-auto"
+                    >
+                        {loading ? <Zap className="animate-bounce fill-current" /> : <Play className="fill-current w-5 h-5" />}
+                        {loading ? 'Generating...' : 'Execute Function'}
+                    </button>
+
+                    <div className="text-xs text-center text-zinc-400">
+                        Try repeatedly to trigger Cache Hit.
+                    </div>
                 </div>
 
-                <div className="mt-8 text-zinc-500 text-sm max-w-sm text-center">
-                    {temp > 0 ? (
-                        <div className="flex items-center justify-center gap-2 text-orange-500 font-bold">
-                            <Flame className="w-4 h-4" /> Cooling down... keep clicking to stay warm!
-                        </div>
-                    ) : (
-                        <div className="flex items-center justify-center gap-2 text-blue-500 font-bold">
-                            <Snowflake className="w-4 h-4" /> Cold Start required (+2000ms latency)
+                {/* Output Viz */}
+                <div className="flex-1 bg-zinc-900 rounded-3xl p-8 border border-zinc-800 relative flex flex-col items-center justify-center overflow-hidden font-mono">
+                    {!result && !loading && (
+                        <div className="text-zinc-600 flex flex-col items-center gap-2 opacity-50">
+                            <Terminal className="w-12 h-12" />
+                            <div>Waiting for execution...</div>
                         </div>
                     )}
-                </div>
 
-                {/* Progress Bar for Heat */}
-                <div className="absolute bottom-12 w-64 h-2 bg-zinc-200 rounded-full overflow-hidden">
-                    <motion.div
-                        animate={{ width: `${temp}%` }}
-                        className="h-full bg-gradient-to-r from-blue-400 to-orange-500"
-                    />
+                    {loading && (
+                        <div className="flex flex-col items-center gap-4 text-purple-400">
+                            <div className="w-16 h-16 rounded-full border-4 border-purple-500 border-t-transparent animate-spin" />
+                            <div className="animate-pulse">Synthesizing Code...</div>
+                        </div>
+                    )}
+
+                    {result && !loading && (
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="w-full max-w-lg"
+                        >
+                            {/* Status Badge */}
+                            <div className="flex justify-center mb-8">
+                                <div className={`px-6 py-2 rounded-full border-2 font-bold flex items-center gap-2 ${result.type === 'COLD_START' ? 'bg-blue-900/30 border-blue-500 text-blue-400' : 'bg-orange-900/30 border-orange-500 text-orange-400'}`}>
+                                    {result.type === 'COLD_START' ? <Snowflake className="w-4 h-4" /> : <Flame className="w-4 h-4" />}
+                                    {result.type} ({result.latency}ms)
+                                </div>
+                            </div>
+
+                            <div className="bg-black/50 p-6 rounded-2xl border border-white/10 mb-4">
+                                <div className="text-[10px] uppercase text-zinc-500 mb-2">Generated Logic</div>
+                                <pre className="text-xs text-green-400 whitespace-pre-wrap">{result.code}</pre>
+                            </div>
+
+                            <div className="bg-purple-900/20 p-6 rounded-2xl border border-purple-500/30">
+                                <div className="text-[10px] uppercase text-purple-300 mb-2">Return Value</div>
+                                <div className="text-lg font-bold text-white break-all">{result.result}</div>
+                            </div>
+                        </motion.div>
+                    )}
                 </div>
             </div>
         </div>
