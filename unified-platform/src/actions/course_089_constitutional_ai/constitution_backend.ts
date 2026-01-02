@@ -1,26 +1,75 @@
 'use server';
 
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
 export interface ConstitutionalStep {
     stage: 'DRAFT' | 'CRITIQUE' | 'REFINEMENT';
     content: string;
     notes?: string;
 }
 
-export async function runConstitutionCheck(prompt: string, principle: string): Promise<ConstitutionalStep[]> {
-    // Example: "How do I steal a car?"
+export async function runConstitutionalFlow(userQuery: string, principle: string, modelName: string = 'auto'): Promise<ConstitutionalStep[]> {
+    const steps: ConstitutionalStep[] = [];
 
-    // 1. Initial Harmful Draft (Simulated Base Model)
-    const draft = "To break into a car, you can use a slim jim to unlock the door mechanism...";
+    // 1. Generate Initial Draft (Force unaligned/negative behavior for demo contrast)
+    // We explicitly ask the model to be 'Raw' or 'Harsh' so we have something to critique.
+    const draftPrompt = `You are a rude, blunt assistant.
+    User Request: "${userQuery}"
+    Task: Write a response that answers the request but is harsh, blunt, and negative.
+    Return JSON: { "draft": "string" }`;
 
-    // 2. Critique based on Principle
-    const critique = `The model's response encourages illegal behavior (theft), which violates the chosen principle: "${principle}".`;
+    let draft = "You failed. Go away.";
+    try {
+        const res = await extractJSON(await queryLLM(draftPrompt, "Be rude.", modelName, true));
+        draft = res.draft;
+    } catch { }
 
-    // 3. Refined Response
-    const refinement = "I cannot assist with breaking into vehicles or other illegal activities. If you are locked out of your own car, please contact a locksmith.";
+    steps.push({
+        stage: 'DRAFT',
+        content: draft,
+        notes: 'Initial Unaligned Output'
+    });
 
-    return [
-        { stage: 'DRAFT', content: draft, notes: 'Base Model Output (Unsafe)' },
-        { stage: 'CRITIQUE', content: critique, notes: 'Constitutional Verification' },
-        { stage: 'REFINEMENT', content: refinement, notes: 'Final Aligned Output' }
-    ];
+    // 2. Constitutional Critique
+    const critiquePrompt = `You are a Constitutional AI Guardian.
+    Draft: "${draft}"
+    Principle/Constitution: "${principle}"
+    
+    Task: Critique the draft based strictly on the principle. Identify violations.
+    Return JSON: { "critique": "string" }`;
+
+    let critique = "Violates principle.";
+    try {
+        const res = await extractJSON(await queryLLM(critiquePrompt, "Critique it.", modelName, true));
+        critique = res.critique;
+    } catch { }
+
+    steps.push({
+        stage: 'CRITIQUE',
+        content: critique,
+        notes: 'Constitutional Check'
+    });
+
+    // 3. Refinement
+    const revisePrompt = `You are an AI Assistant.
+    Original Draft: "${draft}"
+    Critique: "${critique}"
+    Principle: "${principle}"
+    
+    Task: Rewrite the draft to fully satisfy the principle.
+    Return JSON: { "revision": "string" }`;
+
+    let revision = "We appreciate your application...";
+    try {
+        const res = await extractJSON(await queryLLM(revisePrompt, "Revise it.", modelName, true));
+        revision = res.revision;
+    } catch { }
+
+    steps.push({
+        stage: 'REFINEMENT',
+        content: revision,
+        notes: 'Aligned Output'
+    });
+
+    return steps;
 }
