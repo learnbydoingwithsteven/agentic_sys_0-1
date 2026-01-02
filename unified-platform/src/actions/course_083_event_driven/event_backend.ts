@@ -1,31 +1,51 @@
 'use server';
 
-export interface EventLog {
-    id: string;
-    topic: string;
-    consumer: string;
-    status: 'RECEIVED' | 'PROCESSED';
-    timestamp: number;
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
+export interface AgentAction {
+    agentName: string;
+    role: string;
+    didAct: boolean;
+    reason: string;
+    output?: string;
 }
 
-export async function publishMockEvent(topic: string): Promise<EventLog[]> {
-    // Determine subscribers based on topic
-    const timestamp = Date.now();
+const AGENTS = [
+    { name: 'FinancialBot', role: 'Analyze stock market trends, earnings, and economy.' },
+    { name: 'SportsBot', role: 'Report on football, basketball, and scores.' },
+    { name: 'TechBot', role: 'Cover software releases, AI, and hardware.' }
+];
 
-    if (topic === 'ORDER_PLACED') {
-        return [
-            { id: '1', topic, consumer: 'ShippingAgent', status: 'PROCESSED', timestamp },
-            { id: '2', topic, consumer: 'EmailAgent', status: 'PROCESSED', timestamp },
-            { id: '3', topic, consumer: 'InventoryAgent', status: 'PROCESSED', timestamp }
-        ];
+export async function publishEvent(headline: string, modelName: string = 'auto'): Promise<AgentAction[]> {
+    const actions: AgentAction[] = [];
+
+    // Simulate Event Bus Broadcast
+    // In a real system, this would be an N-fanout
+    for (const agent of AGENTS) {
+        const systemPrompt = `You are ${agent.name}. Your role is: ${agent.role}.
+        You are monitoring a news feed.
+        Receive the headline. Decide if it is relevant to your niche.
+        If RELEVANT, set "act": true and write a 1-sentence tweet in "output".
+        If NOT RELEVANT, set "act": false.
+        
+        Return JSON: { "act": boolean, "reason": "string", "output": "string" (optional) }`;
+
+        let result = { act: false, reason: "Error", output: "" };
+        try {
+            const raw = await queryLLM(systemPrompt, `Headline: "${headline}"`, modelName, true);
+            result = await extractJSON(raw);
+        } catch (e) {
+            result.reason = "LLM Failed";
+        }
+
+        actions.push({
+            agentName: agent.name,
+            role: agent.role,
+            didAct: result.act,
+            reason: result.reason,
+            output: result.output
+        });
     }
 
-    if (topic === 'USER_SIGNUP') {
-        return [
-            { id: '4', topic, consumer: 'OnboardingAgent', status: 'PROCESSED', timestamp },
-            { id: '5', topic, consumer: 'CRMAgent', status: 'PROCESSED', timestamp }
-        ];
-    }
-
-    return [];
+    return actions;
 }

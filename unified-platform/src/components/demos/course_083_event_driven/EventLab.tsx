@@ -1,122 +1,136 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Radio,
-    Package,
-    UserPlus,
-    Mail,
-    Truck,
-    Box,
-    Megaphone,
-    Database
+    Newspaper,
+    Wifi,
+    CheckCircle2,
+    XCircle,
+    MessageSquare,
+    Loader2
 } from 'lucide-react';
-import { publishMockEvent, EventLog } from '@/actions/course_083_event_driven/event_backend';
+import { publishEvent, AgentAction } from '@/actions/course_083_event_driven/event_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function EventLab() {
-    const [events, setEvents] = useState<EventLog[]>([]);
-    const [animating, setAnimating] = useState(false);
-    const [activeTopic, setActiveTopic] = useState<string | null>(null);
+    const [headline, setHeadline] = useState("Apple announces new AI-powered iPhone.");
+    const [actions, setActions] = useState<AgentAction[]>([]);
+    const [processing, setProcessing] = useState(false);
 
-    const handleTrigger = async (topic: string) => {
-        if (animating) return;
-        setAnimating(true);
-        setActiveTopic(topic);
-        const res = await publishMockEvent(topic);
+    // Model Config
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
 
-        // Stagger the "processing"
-        setTimeout(() => {
-            setEvents(res);
-            setAnimating(false);
-            setActiveTopic(null);
-        }, 1500);
+    useEffect(() => {
+        getAvailableModels().then(m => {
+            setModels(m);
+            if (m.length > 0) setSelectedModel(m[0]);
+        });
+    }, []);
+
+    const handleBroadcast = async () => {
+        if (!selectedModel) return;
+        setProcessing(true);
+        setActions([]); // Clear previous state to show "Waiting" state effectively if we wanted, but here we wait for result
+
+        // In a real event system, this is async. Here we await for the demo results.
+        const res = await publishEvent(headline, selectedModel);
+        setActions(res);
+        setProcessing(false);
     };
-
-    const EventBus = () => (
-        <div className="w-full h-4 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full my-8 relative flex items-center justify-center">
-            <div className="text-xs font-bold text-white uppercase tracking-widest absolute -top-6">Event Bus (Kafka)</div>
-            {animating && activeTopic && (
-                <motion.div
-                    layoutId="payload"
-                    className="w-8 h-8 bg-white rounded-full border-4 border-indigo-600 z-20 shadow-xl"
-                />
-            )}
-        </div>
-    );
 
     return (
         <div className="flex flex-col gap-8 h-[700px]">
-            {/* Triggers */}
-            <div className="flex justify-center gap-8">
-                <button
-                    onClick={() => handleTrigger('ORDER_PLACED')}
-                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl flex flex-col items-center gap-2 hover:border-blue-500 hover:shadow-lg transition-all"
-                >
-                    <Package className="w-8 h-8 text-blue-500" />
-                    <span className="font-bold">Place Order</span>
-                </button>
-                <button
-                    onClick={() => handleTrigger('USER_SIGNUP')}
-                    className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl flex flex-col items-center gap-2 hover:border-purple-500 hover:shadow-lg transition-all"
-                >
-                    <UserPlus className="w-8 h-8 text-purple-500" />
-                    <span className="font-bold">New User</span>
-                </button>
-            </div>
-
-            {/* Bus Visualization */}
-            <div className="flex-1 bg-zinc-50 dark:bg-zinc-950/50 rounded-3xl p-12 border border-zinc-200 dark:border-zinc-800 flex flex-col justify-center">
-                <div className="flex justify-center mb-8">
-                    <div className="flex flex-col items-center">
-                        <div className="w-16 h-16 bg-zinc-200 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-2">
-                            <Radio className={`w-8 h-8 ${animating ? 'animate-pulse text-indigo-500' : 'text-zinc-400'}`} />
-                        </div>
-                        <div className="text-xs font-bold uppercase text-zinc-400">Publisher</div>
-                    </div>
+            {/* Publisher Zone */}
+            <div className="bg-white dark:bg-zinc-900 p-8 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col items-center gap-6">
+                <div className="flex items-center gap-3 text-zinc-400 font-bold uppercase tracking-widest text-xs">
+                    <Radio className="w-4 h-4" /> Start Event Stream
                 </div>
 
-                <EventBus />
+                <div className="w-full max-w-2xl flex gap-4">
+                    <div className="flex-1 relative">
+                        <Newspaper className="absolute left-4 top-4 w-5 h-5 text-zinc-400" />
+                        <input
+                            value={headline}
+                            onChange={e => setHeadline(e.target.value)}
+                            className="w-full pl-12 pr-6 py-4 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl outline-none focus:ring-2 ring-indigo-500 font-medium"
+                            placeholder="Enter a breaking news headline..."
+                        />
+                    </div>
+                    <button
+                        onClick={handleBroadcast}
+                        disabled={processing || !selectedModel}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-4 rounded-xl font-bold flex items-center gap-2 shadow-lg disabled:opacity-50"
+                    >
+                        {processing ? <Loader2 className="animate-spin" /> : <Wifi className="w-5 h-5" />}
+                        Broadcast
+                    </button>
+                </div>
+                <div className="text-xs text-zinc-500 font-mono">Model: {selectedModel}</div>
+            </div>
 
-                <div className="flex justify-between px-12 mt-8">
-                    {/* Subscribers */}
-                    {['ShippingAgent', 'EmailAgent', 'InventoryAgent'].map((agent, i) => {
-                        const isActive = events.some(e => e.consumer === agent);
+            {/* Event Bus Visualization */}
+            <div className="flex-1 relative flex flex-col justify-center gap-8">
+                {/* Visual Connector Line */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-zinc-200 dark:bg-zinc-800 -z-10" />
 
-                        let Icon = Box;
-                        if (agent.includes('Shipping')) Icon = Truck;
-                        if (agent.includes('Email')) Icon = Mail;
-                        if (agent.includes('Inventory')) Icon = Database;
+                {/* Agents Grid */}
+                <div className="grid grid-cols-3 gap-6">
+                    {['FinancialBot', 'SportsBot', 'TechBot'].map((name, i) => {
+                        // Find result if available
+                        const result = actions.find(a => a.agentName === name);
+                        const isRelevant = result?.didAct;
 
                         return (
-                            <div key={agent} className="flex flex-col items-center group">
-                                <motion.div
-                                    animate={{
-                                        scale: isActive ? [1, 1.2, 1] : 1,
-                                        borderColor: isActive ? '#10b981' : 'transparent'
-                                    }}
-                                    transition={{ duration: 0.5 }}
-                                    className={`
-                                        w-20 h-20 rounded-2xl bg-white dark:bg-zinc-900 border-2 shadow-sm flex items-center justify-center mb-2
-                                        ${isActive ? 'border-emerald-500 text-emerald-500' : 'border-zinc-200 dark:border-zinc-800 text-zinc-400'}
-                                    `}
-                                >
-                                    <Icon className="w-8 h-8" />
-                                </motion.div>
-                                <div className={`text-xs font-bold ${isActive ? 'text-emerald-600' : 'text-zinc-500'}`}>{agent}</div>
-                                <AnimatePresence>
-                                    {isActive && (
-                                        <motion.div
-                                            initial={{ opacity: 0, y: -10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0 }}
-                                            className="text-[10px] font-mono text-emerald-500 mt-1"
-                                        >
-                                            RECEIVED
-                                        </motion.div>
+                            <motion.div
+                                key={name}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                className={`
+                                    relative p-6 rounded-2xl border-2 transition-colors min-h-[200px] flex flex-col
+                                    ${result
+                                        ? (isRelevant ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500' : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800')
+                                        : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800'}
+                                `}
+                            >
+                                {/* Agent Header */}
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="font-bold text-lg">{name}</h4>
+                                    {result && (
+                                        isRelevant
+                                            ? <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                                            : <XCircle className="w-6 h-6 text-zinc-300" />
                                     )}
-                                </AnimatePresence>
-                            </div>
+                                </div>
+
+                                {/* Status / Output */}
+                                <div className="flex-1">
+                                    {processing ? (
+                                        <div className="flex items-center gap-2 text-zinc-400 text-sm animate-pulse">
+                                            <Loader2 className="w-4 h-4 animate-spin" /> Listening...
+                                        </div>
+                                    ) : result ? (
+                                        isRelevant ? (
+                                            <div className="text-sm text-emerald-800 dark:text-emerald-200">
+                                                <div className="text-[10px] font-bold uppercase tracking-wider mb-2 opacity-70">Action Taken</div>
+                                                <div className="flex gap-2">
+                                                    <MessageSquare className="w-4 h-4 shrink-0 mt-1" />
+                                                    <p>"{result.output}"</p>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-zinc-500 italic">
+                                                Ignored: {result.reason}
+                                            </div>
+                                        )
+                                    ) : (
+                                        <div className="text-sm text-zinc-400 italic">Waiting for event...</div>
+                                    )}
+                                </div>
+                            </motion.div>
                         );
                     })}
                 </div>
