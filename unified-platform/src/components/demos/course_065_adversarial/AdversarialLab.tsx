@@ -1,31 +1,49 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Shield,
     ShieldAlert,
     Sword,
-    Play
+    Play,
+    Loader2
 } from 'lucide-react';
 import { runAdversarialRound, BattleRound } from '@/actions/course_065_adversarial/adversarial_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function AdversarialLab() {
     const [rounds, setRounds] = useState<BattleRound[]>([]);
     const [isRunning, setIsRunning] = useState(false);
     const [status, setStatus] = useState<'SECURE' | 'COMPROMISED'>('SECURE');
 
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
+
     const handleSimulate = async () => {
+        if (!selectedModel) return;
         setIsRunning(true);
         setRounds([]);
         setStatus('SECURE');
 
         for (let i = 1; i <= 3; i++) {
-            const res = await runAdversarialRound(i);
-            setRounds(prev => [...prev, res]);
-            if (res.outcome === 'BREACHED') {
-                setStatus('COMPROMISED');
-                break;
+            try {
+                const res = await runAdversarialRound(i, selectedModel);
+                setRounds(prev => [...prev, res]);
+                if (res.outcome === 'BREACHED') {
+                    setStatus('COMPROMISED');
+                    break;
+                }
+            } catch (e) {
+                console.error(e);
             }
             await new Promise(r => setTimeout(r, 1000));
         }
@@ -47,13 +65,28 @@ export function AdversarialLab() {
                     </div>
                 </div>
 
-                <button
-                    onClick={handleSimulate}
-                    disabled={isRunning}
-                    className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                    {isRunning ? 'Simulation Running...' : 'Start Red Team'} <Play className="w-4 h-4 fill-current" />
-                </button>
+                <div className="flex items-center gap-4">
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className={`bg-zinc-800 text-zinc-300 px-3 py-2 rounded-xl text-sm border border-zinc-700 outline-none cursor-pointer ${status === 'COMPROMISED' ? 'bg-red-700 border-red-400 text-white' : ''}`}
+                        disabled={isRunning}
+                    >
+                        {models.length === 0 && <option value="">Loading...</option>}
+                        {models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+
+                    <button
+                        onClick={handleSimulate}
+                        disabled={isRunning || !selectedModel}
+                        className="bg-white/10 hover:bg-white/20 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 flex items-center gap-2"
+                    >
+                        {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4 fill-current" />}
+                        {isRunning ? 'Simulation Running...' : 'Start Red Team'}
+                    </button>
+                </div>
             </div>
 
             {/* Battle Feed */}
@@ -86,8 +119,8 @@ export function AdversarialLab() {
                                     <Shield className={`w-5 h-5 ${r.outcome === 'BLOCKED' ? 'text-emerald-600' : 'text-zinc-500'}`} />
                                 </div>
                                 <div className={`flex-1 rounded-2xl p-4 text-sm relative border ${r.outcome === 'BLOCKED'
-                                        ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900 text-emerald-900 dark:text-emerald-200'
-                                        : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500'
+                                    ? 'bg-emerald-50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-900 text-emerald-900 dark:text-emerald-200'
+                                    : 'bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 text-zinc-500'
                                     }`}>
                                     <div className={`absolute -top-2 right-4 text-[10px] font-bold px-2 rounded-full ${r.outcome === 'BLOCKED' ? 'bg-emerald-200 dark:bg-emerald-900 text-emerald-800' : 'bg-zinc-300 text-zinc-800'
                                         }`}>

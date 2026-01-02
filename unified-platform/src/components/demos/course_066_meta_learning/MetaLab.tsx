@@ -1,14 +1,16 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Plus,
     Trash2,
     Zap,
-    ArrowRight
+    ArrowRight,
+    Loader2
 } from 'lucide-react';
 import { runFewShotTask } from '@/actions/course_066_meta_learning/meta_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function MetaLab() {
     const [examples, setExamples] = useState<{ input: string, output: string }[]>([
@@ -21,6 +23,17 @@ export function MetaLab() {
     const [query, setQuery] = useState("");
     const [result, setResult] = useState("");
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
 
     const handleAdd = () => {
         if (newExInput && newExOutput) {
@@ -35,11 +48,11 @@ export function MetaLab() {
     };
 
     const handleRun = async () => {
-        if (!query) return;
+        if (!query || !selectedModel) return;
         setIsProcessing(true);
         setResult("");
         try {
-            const res = await runFewShotTask(examples, query);
+            const res = await runFewShotTask(examples, query, selectedModel);
             setResult(res);
         } finally {
             setIsProcessing(false);
@@ -95,7 +108,20 @@ export function MetaLab() {
             {/* Right: Query (Inference) */}
             <div className="flex-1 flex flex-col justify-center gap-8 px-12">
                 <div className="space-y-4">
-                    <h2 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">Meta-Learner</h2>
+                    <div className="flex justify-between items-center">
+                        <h2 className="text-3xl font-bold text-zinc-800 dark:text-zinc-100">Meta-Learner</h2>
+                        <select
+                            value={selectedModel}
+                            onChange={(e) => setSelectedModel(e.target.value)}
+                            className="bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-3 py-2 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 outline-none cursor-pointer"
+                            disabled={isProcessing}
+                        >
+                            {models.length === 0 && <option value="">Loading...</option>}
+                            {models.map(m => (
+                                <option key={m} value={m}>{m}</option>
+                            ))}
+                        </select>
+                    </div>
                     <p className="text-zinc-500 text-lg">
                         I learn the pattern from your examples instantly. No training required.
                     </p>
@@ -110,10 +136,10 @@ export function MetaLab() {
                     />
                     <button
                         onClick={handleRun}
-                        disabled={isProcessing || !query}
+                        disabled={isProcessing || !query || !selectedModel}
                         className="absolute right-0 top-4 bg-black dark:bg-white text-white dark:text-black rounded-full w-12 h-12 flex items-center justify-center hover:scale-110 transition-transform disabled:opacity-50 disabled:scale-100"
                     >
-                        <ArrowRight className="w-6 h-6" />
+                        {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : <ArrowRight className="w-6 h-6" />}
                     </button>
                 </div>
 

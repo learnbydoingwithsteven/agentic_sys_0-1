@@ -1,29 +1,56 @@
 'use server';
 
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
 export interface SwarmMessage {
     sender: string;
     text: string;
 }
 
-export async function runSwarmStep(history: SwarmMessage[]): Promise<SwarmMessage> {
-    const lastSender = history.length > 0 ? history[history.length - 1].sender : 'User';
+export async function runSwarmStep(history: SwarmMessage[], modelName: string = 'auto'): Promise<SwarmMessage> {
+    const context = history.map(h => `${h.sender}: ${h.text}`).join("\n");
 
-    // AutoGen-style Round Robin or Selector
-    let nextSender = 'Manager';
-    let text = "";
+    // AutoGen-style Hand-off Pattern
+    // We let the LLM decide who speaks next and what they say.
+    // Roles: 
+    // - Manager: Breaks down tasks.
+    // - Coder: Writes code/solutions.
+    // - Reviewer: Critiques and approves.
 
-    if (lastSender === 'User' || lastSender === 'Reviewer') {
-        nextSender = 'Manager';
-        text = "I'll outline the plan. @Coder please implement the core logic.";
-    } else if (lastSender === 'Manager') {
-        nextSender = 'Coder';
-        text = "Confirmed. Writing Python script to handle the request...";
-    } else if (lastSender === 'Coder') {
-        nextSender = 'Reviewer';
-        text = "Checking code. Looks good, but add error handling.";
+    const systemPrompt = `You are a Swarm Orchestrator for a software team.
+    
+    Roles:
+    - Manager: Coordinates, breaks down 'User' request.
+    - Coder: Implements solution.
+    - Reviewer: Checks code for bugs/safety.
+    
+    Current Conversation History:
+    ${context}
+    
+    Task:
+    1. Analyze the history.
+    2. Decide WHO should speak next (Manager, Coder, or Reviewer).
+       - If User just spoke, usually Manager should speak.
+       - If Manager spoke, usually Coder.
+       - If Coder spoke, usually Reviewer.
+       - If Reviewer rejected, Coder fixes. If accepted, Manager concludes.
+    3. Generate their response.
+    
+    Output JSON ONLY:
+    {
+        "nextSender": "Manager" | "Coder" | "Reviewer",
+        "response": "The text of their message..."
+    }`;
+
+    try {
+        const raw = await queryLLM(systemPrompt, "Continue the conversation.", modelName, true);
+        const result = await extractJSON(raw);
+
+        return {
+            sender: result.nextSender || 'Manager',
+            text: result.response || "..."
+        };
+    } catch (e) {
+        return { sender: 'Manager', text: "I'm having trouble connecting to the team. (LLM Error)" };
     }
-
-    await new Promise(r => setTimeout(r, 1000));
-
-    return { sender: nextSender, text };
 }
