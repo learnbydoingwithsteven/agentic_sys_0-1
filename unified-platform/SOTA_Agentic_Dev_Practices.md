@@ -1,97 +1,85 @@
-# State-of-the-Art (SOTA) Agentic Development Practices
-**Version 1.0 - Jan 2026**
+# State-of-the-Art (SOTA) Agentic Development Guidelines
+**Version 2.0 - Jan 2026**
 
-This document summarizes the best practices and architectural patterns established during the development of the **Unified Agentic Platform**. Run this project as a reference implementation for future agent-based applications.
+This document defines the **mandatory** standards for all modules within the **Unified Agentic Platform**.
 
 ---
 
-## 1. Architecture Patterns
+## 1. Core Principles
 
-### 1.1 Centralized LLM Interface (`llm_helper.ts`)
-*   **Pattern**: Do not instantiate `LangChain` or `Ollama` clients directly in every backend file. Use a centralized helper.
-*   **Why**:
-    *   **Consistency**: Ensures all agents use the same configuration (timeouts, base URLs).
-    *   **Model Agnostic**: Switching from Ollama to OpenAI/Anthropic only requires changing one file.
-    *   **Features**: Centralized logging, error handling, and model discovery.
-*   **Key Function**: `queryLLM(systemPrompt, userPrompt, modelName, jsonMode)`
-
-### 1.2 Structured Output Reliability
-*   **Pattern**: LLMs are text generators, not JSON generators. Always use a robust extraction layer.
+### 1.1 Free & Open Source First
+*   **Rule**: Always prioritize **free tools** and **open-source models**.
 *   **Implementation**:
-    1.  **Prompting**: Explicitly instruct the LLM: *"Return ONLY valid JSON. No markdown."*
-    2.  **Wrappers**: Use `extractJSON()` to parse the response, handling common errors like finding the first `[` or `{` and handling markdown backticks (` ```json `).
-    3.  **Validation**: Always fallback to a safe default or retry logic if parsing fails.
+    *   **LLMs**: Use **Ollama** with local models (e.g., `qwen2.5`, `llama3`, `mistral`). Never fix/hardcode a model; allow the user to select from available local models.
+    *   **Frameworks**: Use **LangChain** (Community/Core), **CrewAI**, or custom TypeScript logic. Avoid paid SaaS wrappers.
+    *   **External APIs**: If an API is required, use free tiers or local simulation/alternatives.
 
-### 1.3 The "Real vs. Simulated" Spectrum
-*   **Real Tool Execution (The Gold Standard)**:
-    *   Whenever possible, execute *real* code.
-    *   **Example**: Module 53 uses `child_process.spawn` to run Python code locally.
-    *   **Security check**: Ensure timeouts and resource limits (sandboxing).
-*   **Environment Simulation (The Silver Standard)**:
-    *   If APIs (e.g., Google Search) are unavailable or expensive, simulate the *environment* behaviors using an LLM, but **never hardcode data**.
-    *   **Example**: Module 54 asks the LLM to *"Generate 3 plausible search results"* based on the topic. This keeps the agent content-aware and functional without dependencies.
-    *   **Anti-Pattern**: Hardcoded arrays `const sources = [...]` (Avoid this!).
+### 1.2 Zero-Mock Policy
+*   **Rule**: **DO NOT MOCK** agent behaviors. Hardcoded arrays (e.g., `const fakeResults = [...]`) are strictly forbidden.
+*   **Alternative**: If a real external tool is unavailable or costly (e.g., Google Search API), use the LLM to **simulate the environment dynamically**.
+    *   *Correct*: Ask LLM "Act as a search engine and generate 3 relevant results for [Topic]".
+    *   *Incorrect*: Returning a static list of pre-written links.
+*   **Reasoning**: Users must see the agent's *reasoning process* in action, even if the data source is synthetic.
+
+### 1.3 Agentic Workflows
+*   **Rule**: Behaviors must be **Agentic**, not just simple Request/Response.
+*   **Requirements**:
+    *   **Tools**: Agents must use tools (Code Execution, Search, Calculator).
+    *   **Planning**: Decompose complex tasks (DAGs, Trees).
+    *   **Loops**: Implement feedback loops (Think -> Act -> Observe -> Refine).
+    *   **Frameworks**: Utilize **LangChain** or **CrewAI** patterns where applicable for orchestration, provided they run locally.
 
 ---
 
-## 2. Agentic Workflow Patterns
+## 2. Visibility & Observability
 
-### 2.1 The "Think-Do-Observe" Loop
-*   Agents should not just "return an answer". They should:
-    1.  **Think/Plan**: Decompose the Goal (Module 49/50).
-    2.  **Act**: Use a tool (Search, Code, Memory).
-    3.  **Observe**: Check the result of the tool.
-    4.  **Refine**: Synthesize the final answer (Module 54).
-
-### 2.2 Dynamic Model Selection
-*   **User Control**: Always allow the user to select the underlying model (e.g., `qwen2.5`, `llama3`).
-*   **Why**: Different models have different strengths. A coding agent needs a coding model; a creative writer needs a creative model.
-*   **Implementation**: Frontend fetches `getAvailableModels()` -> Passes selection to Backend `runAgent(..., modelName)`.
-
-### 2.3 Semantic Memory (RAG Lite)
-*   **Pattern**: Don't rely on keyword search. Use vector embeddings or LLM-based relevance scoring.
+### 2.1 Workflow Visualization
+*   **Rule**: The internal state of the agent must be visible to the user.
 *   **Implementation**:
-    *   Store memories with metadata (Timestamp, ID).
-    *   On retrieval, ask the LLM: *"Which of these memories is relevant to the current query?"* (Module 51).
+    *   **Diagrams**: Render the execution workflow (e.g., Mermaid.js graphs, React Flow nodes) showing the path the agent took.
+    *   **Artifacts**: Display intermediate outputs (Plans, Drafts, Code Snippets) in the UI.
+    *   **Logs**: Show a real-time "Thought Stream" (e.g., "Planning...", "Calling Python...", "Reading syntax error...").
 
-### 2.4 Multi-Agent Loops
-*   **Pattern**: Agents interacting with agents.
-*   **Example (Debate - Module 55)**:
-    *   Loop: `Agent A (Pro)` -> Output -> `Agent B (Con)` -> Output -> Repeat.
-    *   **State Management**: Pass the `history` array to the LLM at each turn so it maintains context.
-
----
-
-## 3. UI/UX Best Practices
-
-### 3.1 Transparent State
-*   Users must know what the agent is doing.
-*   **Bad**: A spinning loader for 30 seconds.
-*   **Good**: "Browsing web...", "Synthesizing report...", "Executing code...".
-
-### 3.2 Streaming & Real-Time Feedback
-*   For long-running tasks, simulate streaming or use steps.
-*   **Example**: Debate agent shows messages appearing one by one.
-
-### 3.3 Visualizing the "Brain"
-*   Show the internal artifacts:
-    *   Show the **Plan** (DAG graph).
-    *   Show the **Code** being executed.
-    *   Show the **Search Results** found.
-*   This builds trust and debugging capability.
+### 2.2 Evaluation (Eval)
+*   **Rule**: If applicable, include an **Evaluation** step.
+*   **Implementation**:
+    *   Score the agent's output (using another LLM as judge).
+    *   Display metrics (Success Rate, Latency, Step Count).
+    *   Allow the user to see *why* a particular result was improved.
 
 ---
 
-## 4. Code Quality Checklist
+## 3. Curriculum Sequence & Extensions
 
-- [x] **No Hardcoded Mocks**: All data is generated dynamically by LLM or Tools.
-- [x] **Error Handling**: `try/catch` blocks around every LLM call.
-- [x] **Type Safety**: TypeScript interfaces for all LLM inputs/outputs.
-- [x] **Independence**: Each module is self-contained (Backend Action + Frontend Component).
+### 3.1 Strict Sequence Adherence
+*   **Rule**: Follow the established sequence of modules (e.g., `course_050` -> `course_051` -> ...).
+*   **Do Not Modification**: Do not arbitrarily reorder or replace existing core modules if they serve a specific pedagogical purpose.
+
+### 3.2 Extensibility Strategy
+*   **Rule**: If a better solution or a new technology emerges:
+    *   **Add**: Create a **new module** at the *end* of the sequence (e.g., `course_099_advanced_search`).
+    *   **Retain**: Keep the original module to show value progression/contrast.
+    *   **Integrate**: Ensure the new module follows all SOTA standards defined here.
 
 ---
 
-**Reference**:
-*   `src/lib/llm_helper.ts` (Core Logic)
-*   `src/actions/course_053_code_execution` (Real Tool Use)
-*   `src/actions/course_050_goal_oriented` (Recursive Logic)
+## 4. Technical Implementation SOTA
+
+### 4.1 Architecture
+*   **Frontend**: Next.js (App Router) + Tailwind CSS (v4) + Lucide Icons.
+*   **Backend**: Server Actions (`'use server'`) + Centralized `llm_helper.ts`.
+*   **State Management**: React State for ephemeral data; File System/Vector Store for persistence.
+
+### 4.2 Code Standards
+*   [x] **Dynamic Models**: Frontend calls `getAvailableModels()`, Backend accepts `modelName`.
+*   [x] **Robust Parsing**: Always use `extractJSON` wrapper for structured data.
+*   [x] **Real Execution**: Use `child_process` for code, not `eval()` or mocks.
+*   [x] **Error Boundaries**: Graceful degradations (e.g., "Search failed, trying alternative...").
+
+---
+
+**Reference Implementation**:
+*   `src/lib/llm_helper.ts` (Core Interface)
+*   `src/actions/course_053_code_execution` (Real Tooling)
+*   `src/actions/course_054_research_assistant` (Simulated Environment Content)
+*   `src/actions/course_055_debate` (Multi-Agent Loop)
