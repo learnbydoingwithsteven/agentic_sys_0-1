@@ -8,15 +8,16 @@ import {
     TrendingDown,
     Zap,
     Brain,
-    Loader2
+    Loader2,
+    Scale,
+    Trophy
 } from 'lucide-react';
-import { runEconomicSimulation, TaskEconomics } from '@/actions/course_072_agent_economics/economics_backend';
+import { runEconomicComparison, StrategyResult } from '@/actions/course_072_agent_economics/economics_backend';
 import { getAvailableModels } from '@/lib/llm_helper';
 
 export function EconomicsLab() {
-    const [transactions, setTransactions] = useState<TaskEconomics[]>([]);
-    const [simulatedTier, setSimulatedTier] = useState<'cheap' | 'expensive'>('cheap');
-    const [task, setTask] = useState<'low' | 'high'>('low');
+    const [results, setResults] = useState<StrategyResult[]>([]);
+    const [taskType, setTaskType] = useState<'simple' | 'complex'>('complex');
     const [isRunning, setIsRunning] = useState(false);
 
     // Model Selection
@@ -26,141 +27,159 @@ export function EconomicsLab() {
     useEffect(() => {
         getAvailableModels().then(available => {
             setModels(available);
-            if (available.length > 0) setSelectedModel(available[0]);
+            models.length > 0 && setSelectedModel(models[0]);
         });
     }, []);
 
     const handleRun = async () => {
         if (!selectedModel) return;
         setIsRunning(true);
+        setResults([]);
+
+        const prompt = taskType === 'simple'
+            ? "Write a one sentence email acknowledging receipt."
+            : "Analyze the pros and cons of Microservices vs Monolith architecture for a startup.";
+
         try {
-            const res = await runEconomicSimulation(simulatedTier, task, selectedModel);
-            setTransactions(prev => [res, ...prev].slice(0, 10)); // Keep last 10
+            const res = await runEconomicComparison(prompt, selectedModel);
+            setResults(res);
         } catch (e) {
             console.error(e);
         }
         setIsRunning(false);
     };
 
-    const totalProfit = transactions.reduce((acc, t) => acc + t.profit, 0);
+    const winner = results.length === 2
+        ? (results[0].roi > results[1].roi ? results[0] : results[1])
+        : null;
 
     return (
         <div className="flex flex-col gap-8 h-[700px]">
-            {/* Controls */}
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex items-center justify-between">
-                <div className="flex flex-col xl:flex-row gap-8">
-                    {/* Actual LLM */}
-                    <div className="flex flex-col gap-2">
-                        <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Execution Model</div>
+            {/* Header / Controls */}
+            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col items-center gap-6">
+                <div className="flex flex-col items-center gap-2">
+                    <h3 className="font-bold text-lg flex items-center gap-2">
+                        <Scale className="w-5 h-5 text-indigo-500" />
+                        Strategic ROI Optimizer
+                    </h3>
+                    <p className="text-zinc-500 text-sm text-center max-w-md">
+                        Compare "Efficiency" vs "Deep Reasoning" strategies. The agent calculates Cost, Quality (Score), and ROI to pick the winner.
+                    </p>
+                </div>
+
+                <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-950 p-2 rounded-2xl">
+                    <div className="flex flex-col">
+                        <label className="text-[10px] font-bold text-zinc-500 pl-2 uppercase">Task</label>
+                        <select
+                            value={taskType}
+                            onChange={(e) => setTaskType(e.target.value as any)}
+                            className="bg-transparent font-bold py-1 px-2 outline-none cursor-pointer"
+                        >
+                            <option value="simple">Simple (Email)</option>
+                            <option value="complex">Complex (Analysis)</option>
+                        </select>
+                    </div>
+                    <div className="w-px h-8 bg-zinc-300 dark:bg-zinc-800" />
+                    <div className="flex flex-col">
+                        <label className="text-[10px] font-bold text-zinc-500 pl-2 uppercase">Model</label>
                         <select
                             value={selectedModel}
                             onChange={(e) => setSelectedModel(e.target.value)}
-                            className="bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 outline-none w-48"
-                            disabled={isRunning}
+                            className="bg-transparent font-bold py-1 px-2 outline-none cursor-pointer w-40"
                         >
                             {models.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                     </div>
-
-                    {/* Pricing Tier Switch */}
-                    <div className="flex flex-col gap-2">
-                        <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Simulated Pricing</div>
-                        <div className="flex bg-zinc-100 dark:bg-black/50 p-1 rounded-xl">
-                            <button
-                                onClick={() => setSimulatedTier('cheap')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${simulatedTier === 'cheap' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
-                            >
-                                <Zap className="w-4 h-4 text-yellow-500" /> Standard
-                            </button>
-                            <button
-                                onClick={() => setSimulatedTier('expensive')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all ${simulatedTier === 'expensive' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
-                            >
-                                <Brain className="w-4 h-4 text-purple-500" /> Premium
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Task Switch */}
-                    <div className="flex flex-col gap-2">
-                        <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Task Complexity</div>
-                        <div className="flex bg-zinc-100 dark:bg-black/50 p-1 rounded-xl">
-                            <button
-                                onClick={() => setTask('low')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${task === 'low' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
-                            >
-                                Simple
-                            </button>
-                            <button
-                                onClick={() => setTask('high')}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${task === 'high' ? 'bg-white shadow text-black' : 'text-zinc-500 hover:text-zinc-700'}`}
-                            >
-                                Complex
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="text-right">
-                    <div className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1">Net Profit (Session)</div>
-                    <div className={`text-3xl font-black ${totalProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        {totalProfit >= 0 ? '+' : ''}{totalProfit.toFixed(2)}¢
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Area */}
-            <div className="flex flex-1 gap-8 overflow-hidden">
-                {/* Visualizer (Run Button + Stats) */}
-                <div className="w-1/3 flex flex-col items-center justify-center bg-zinc-50 dark:bg-zinc-950/30 rounded-3xl p-8 border border-zinc-200 dark:border-zinc-800">
                     <button
                         onClick={handleRun}
                         disabled={isRunning || !selectedModel}
-                        className="w-48 h-48 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black text-xl shadow-2xl flex flex-col items-center justify-center gap-2 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 ml-4 flex items-center gap-2"
                     >
-                        {isRunning ? <Loader2 className="w-12 h-12 animate-spin" /> : <DollarSign className="w-12 h-12" />}
-                        {isRunning ? 'CALCULATING' : 'EXECUTE'}
+                        {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Scale className="w-4 h-4" />}
+                        Compare Strategies
                     </button>
-                    <p className="mt-8 text-center text-zinc-500 text-sm max-w-[200px]">
-                        Run the agent on the selected task and measure the ROI based on real token usage.
-                    </p>
-                </div>
-
-                {/* Ledger */}
-                <div className="flex-1 bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-zinc-200 dark:border-zinc-800 overflow-y-auto custom-scrollbar flex flex-col gap-3">
-                    <h3 className="font-bold text-zinc-400 uppercase text-xs tracking-wider mb-2">Transaction Log</h3>
-                    <AnimatePresence>
-                        {transactions.map((t) => (
-                            <motion.div
-                                key={t.id}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                className="flex items-center justify-between p-4 bg-zinc-50 dark:bg-zinc-800 rounded-2xl border border-zinc-100 dark:border-zinc-700"
-                            >
-                                <div>
-                                    <div className="font-bold text-sm">{t.taskName}</div>
-                                    <div className="text-xs text-zinc-500">In: {t.inputTokens} | Out: {t.outputTokens}</div>
-                                </div>
-                                <div className="text-right flex items-center gap-6">
-                                    <div className="hidden lg:block text-xs text-zinc-400">
-                                        <div>Cost: {t.cost}¢</div>
-                                        <div>Val: {t.value}¢</div>
-                                    </div>
-                                    <div className={`font-bold font-mono text-lg flex items-center gap-1 ${t.profit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                        {t.profit > 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                                        {t.profit > 0 ? '+' : ''}{t.profit.toFixed(2)}¢
-                                    </div>
-                                </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
-                    {transactions.length === 0 && (
-                        <div className="text-center text-zinc-400 mt-20 opacity-50">
-                            No transactions yet.
-                        </div>
-                    )}
                 </div>
             </div>
+
+            {/* Battle Arena */}
+            <div className="flex-1 grid grid-cols-2 gap-6 relative">
+                {/* Winner Banner */}
+                {winner && (
+                    <motion.div
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        className="absolute top-[-15px] left-1/2 -translate-x-1/2 bg-yellow-400 text-black px-4 py-1 rounded-full text-xs font-black uppercase shadow-lg z-20 flex items-center gap-2"
+                    >
+                        <Trophy className="w-3 h-3" />
+                        Winner: {winner.strategy} Strategy
+                    </motion.div>
+                )}
+
+                {/* Strategy A */}
+                <StrategyCard
+                    title="Efficiency Strategy"
+                    icon={<Zap className="w-6 h-6 text-yellow-500" />}
+                    result={results.find(r => r.strategy === 'Efficiency')}
+                    loading={isRunning}
+                    isWinner={winner?.strategy === 'Efficiency'}
+                />
+
+                {/* Strategy B */}
+                <StrategyCard
+                    title="Reasoning Strategy"
+                    icon={<Brain className="w-6 h-6 text-purple-500" />}
+                    result={results.find(r => r.strategy === 'Reasoning')}
+                    loading={isRunning}
+                    isWinner={winner?.strategy === 'Reasoning'}
+                />
+            </div>
+        </div>
+    );
+}
+
+function StrategyCard({ title, icon, result, loading, isWinner }: any) {
+    return (
+        <div className={`
+            rounded-3xl p-6 border-2 flex flex-col gap-4 relative overflow-hidden transition-all duration-500
+            ${isWinner ? 'bg-indigo-50/50 border-indigo-500 dark:bg-indigo-900/20 shadow-[0_0_30px_rgba(99,102,241,0.2)]' : 'bg-white border-zinc-200 dark:bg-zinc-900 dark:border-zinc-800'}
+        `}>
+            {/* Header */}
+            <div className="flex items-center gap-3 border-b border-zinc-100 dark:border-zinc-800 pb-4">
+                <div className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center">
+                    {icon}
+                </div>
+                <div className="font-bold text-lg">{title}</div>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar text-sm text-zinc-600 dark:text-zinc-400 font-mono bg-zinc-50 dark:bg-black/20 p-4 rounded-xl">
+                {loading ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-2 opacity-50">
+                        <Loader2 className="w-6 h-6 animate-spin" />
+                        Generating...
+                    </div>
+                ) : result ? (
+                    result.response
+                ) : (
+                    <div className="text-center opacity-30 mt-10">Run to generate...</div>
+                )}
+            </div>
+
+            {/* Metrics Footer */}
+            <div className="grid grid-cols-3 gap-2">
+                <Metric label="Cost" value={result ? `${result.cost}¢` : '-'} color="text-zinc-500" />
+                <Metric label="Quality" value={result ? `${result.score}/10` : '-'} color={result && result.score >= 8 ? "text-emerald-500" : "text-amber-500"} />
+                <Metric label="ROI" value={result ? `${result.roi}%` : '-'} color={result && result.roi > 100 ? "text-emerald-600 font-black" : "text-zinc-500"} />
+            </div>
+        </div>
+    );
+}
+
+function Metric({ label, value, color }: any) {
+    return (
+        <div className="bg-zinc-50 dark:bg-zinc-800 p-2 rounded-xl text-center">
+            <div className="text-[10px] uppercase text-zinc-400 font-bold">{label}</div>
+            <div className={`text-lg font-bold ${color}`}>{value}</div>
         </div>
     );
 }

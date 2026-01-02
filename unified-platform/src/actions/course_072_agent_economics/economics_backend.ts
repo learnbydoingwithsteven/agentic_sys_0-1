@@ -1,74 +1,80 @@
 'use server';
 
-import { queryLLM } from '@/lib/llm_helper';
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
 
-export interface TaskEconomics {
-    id: string;
-    taskName: string;
-    inputTokens: number;
-    outputTokens: number;
-    cost: number; // in cents
-    value: number; // in cents (business value)
-    profit: number; // value - cost
+export interface StrategyResult {
+    strategy: 'Efficiency' | 'Reasoning';
+    response: string;
+    tokens: number;
+    cost: number;
+    score: number;
+    roi: number;
 }
 
-export async function runEconomicSimulation(
-    simulatedTier: 'cheap' | 'expensive',
-    taskComplexity: 'low' | 'high',
+export async function runEconomicComparison(
+    taskPrompt: string,
     modelName: string = 'auto'
-): Promise<TaskEconomics> {
+): Promise<StrategyResult[]> {
 
-    // 1. Define Task
-    let systemPrompt = "You are a helpful assistant.";
-    let userPrompt = "";
-    let baseValue = 0;
+    // 1. Define Strategies
+    // A. Efficiency: Direct, concise. Represents "Cheap/Fast" models.
+    const promptA = `You are an Efficient Assistant. Answer the user's request as briefly and directly as possible. Do not use Chain of Thought.`;
 
-    if (taskComplexity === 'low') {
-        userPrompt = "Write a one-sentence email reply confirming receipt of the message.";
-        baseValue = 1.0; // 1 cent value
-    } else {
-        systemPrompt = "You are a Market Research Analyst. Provide a detailed analysis.";
-        userPrompt = "Analyze the potential impact of Quantum Computing on the Logistics industry. Provide 3 key trends and a risk assessment.";
-        baseValue = 15.0; // 15 cents value
-    }
+    // B. Reasoning: Verbose, detailed. Represents "Expensive/Smart" models.
+    const promptB = `You are a Deep Reasoning Assistant. Think step-by-step. Analyze the problem from multiple angles before providing a comprehensive answer. Breakdown your logic.`;
 
-    // 2. Execute LLM
-    const start = Date.now();
-    let response = "";
-    try {
-        response = await queryLLM(systemPrompt, userPrompt, modelName);
-    } catch (e) {
-        response = "Error generating response.";
-    }
+    // 2. Execute Parallel
+    const [resA, resB] = await Promise.all([
+        queryLLM(promptA, taskPrompt, modelName),
+        queryLLM(promptB, taskPrompt, modelName)
+    ]);
 
-    // 3. Calculate Tokens (Approx 4 chars = 1 token)
-    const inputTokens = Math.ceil((systemPrompt.length + userPrompt.length) / 4);
-    const outputTokens = Math.ceil(response.length / 4);
+    // 3. LLM Judge for Quality Scoring
+    const judgeSystem = `You are an AI Quality Judge.
+    Evaluate the quality of the answer for the given task.
+    Assign a score from 1 to 10 based on Accuracy, Completeness, and Depth.
+    Return JSON: { "score": number }`;
 
-    // 4. Apply Pricing (Simulated)
-    // Cheap: $0.50 / 1M In, $1.50 / 1M Out  (e.g. Haiku) -> 0.00005 cents/in, 0.00015 cents/out
-    // Expensive: $10 / 1M In, $30 / 1M Out (e.g. Opus) -> 0.001 cents/in, 0.003 cents/out
+    const scoreA_Promise = queryLLM(judgeSystem, `Task: ${taskPrompt}\nAnswer: ${resA}`, modelName, true);
+    const scoreB_Promise = queryLLM(judgeSystem, `Task: ${taskPrompt}\nAnswer: ${resB}`, modelName, true);
 
-    const pricing = simulatedTier === 'cheap'
-        ? { in: 0.00005, out: 0.00015 }
-        : { in: 0.001, out: 0.003 };
+    const [rawScoreA, rawScoreB] = await Promise.all([scoreA_Promise, scoreB_Promise]);
 
-    const costCents = (inputTokens * pricing.in) + (outputTokens * pricing.out);
+    const parsedScoreA = await extractJSON(rawScoreA).catch(() => ({ score: 5 }));
+    const parsedScoreB = await extractJSON(rawScoreB).catch(() => ({ score: 5 }));
 
-    // 5. Value Adjustment
-    // If output is too short for a high complexity task, value drops (Model failed)
-    let realizedValue = baseValue;
-    if (taskComplexity === 'high' && outputTokens < 50) {
-        realizedValue = 0.5; // Failed attempt
-    }
+    // 4. Economics Calculation
+    // Efficiency Model Simulation: $0.50 / 1M tokens (Cheap)
+    // Reasoning Model Simulation: $10.00 / 1M tokens (Expensive) -> 20x Cost
+    const priceA = 0.0001; // cents per token
+    const priceB = 0.002;  // cents per token
 
-    return {
-        id: Math.random().toString(),
-        taskName: taskComplexity === 'low' ? 'Email Reply' : 'Market Analysis',
-        inputTokens,
-        outputTokens,
-        cost: Number(costCents.toFixed(4)),
-        value: realizedValue,
-        profit: Number((realizedValue - costCents).toFixed(4))
-    };
+    const tokensA = Math.ceil(resA.length / 4);
+    const tokensB = Math.ceil(resB.length / 4);
+
+    const costA = tokensA * priceA;
+    const costB = tokensB * priceB;
+
+    // Value = Score * Business Multiplier (e.g., each score point is worth 1 cent)
+    const valueA = parsedScoreA.score * 0.5;
+    const valueB = parsedScoreB.score * 0.5;
+
+    return [
+        {
+            strategy: 'Efficiency',
+            response: resA,
+            tokens: tokensA,
+            cost: Number(costA.toFixed(4)),
+            score: parsedScoreA.score,
+            roi: Number(((valueA - costA) / costA * 100).toFixed(0))
+        },
+        {
+            strategy: 'Reasoning',
+            response: resB,
+            tokens: tokensB,
+            cost: Number(costB.toFixed(4)),
+            score: parsedScoreB.score,
+            roi: Number(((valueB - costB) / costB * 100).toFixed(0))
+        }
+    ];
 }
