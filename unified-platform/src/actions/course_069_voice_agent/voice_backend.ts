@@ -1,27 +1,31 @@
 'use server';
 
+import { queryLLM } from '@/lib/llm_helper';
+
 export interface VoiceResponse {
-    transcript: string;
+    transcript: string; // Echo back for confirmation
     reply: string;
-    audio: boolean; // Just a flag to trigger frontend visualizer
+    audio: boolean;
 }
 
-export async function processVoiceInput(isSpeaking: boolean): Promise<VoiceResponse> {
-    // Simulate latency of STT -> LLM -> TTS pipeline
-    await new Promise(r => setTimeout(r, 2000));
+export async function processVoiceInput(userText: string, modelName: string = 'auto'): Promise<VoiceResponse> {
 
-    // Mock Conversation
-    const phrases = [
-        { in: "What time is it?", out: "It's currently 2:45 PM." },
-        { in: "Tell me a joke.", out: "Why did the robot go on a diet? It had too many bytes." },
-        { in: "Turn on the lights.", out: "Okay, turning on living room lights." },
-    ];
+    // System Prompt for a conversational voice assistant
+    const systemPrompt = "You are a helpful, concise Voice Assistant. Keep responses short (1-2 sentences) and conversational, as they will be spoken aloud.";
 
-    const pick = phrases[Math.floor(Math.random() * phrases.length)];
+    try {
+        const reply = await queryLLM(systemPrompt, userText, modelName);
 
-    return {
-        transcript: pick.in,
-        reply: pick.out,
-        audio: true
-    };
+        return {
+            transcript: userText,
+            reply: reply,
+            audio: true
+        };
+    } catch (e) {
+        return {
+            transcript: userText,
+            reply: "I'm having trouble thinking right now.",
+            audio: false
+        };
+    }
 }

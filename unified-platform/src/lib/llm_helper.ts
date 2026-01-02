@@ -41,7 +41,7 @@ export async function extractJSON(text: string): Promise<any> {
     }
 }
 
-export async function queryLLM(systemPrompt: string, userPrompt: string, model: string, jsonMode: boolean = false): Promise<string> {
+export async function queryLLM(systemPrompt: string, userPrompt: string, model: string, jsonMode: boolean = false, images: string[] = []): Promise<string> {
 
     // Auto-select if model is explicitly 'auto' or empty
     let selectedModel = model;
@@ -60,11 +60,13 @@ export async function queryLLM(systemPrompt: string, userPrompt: string, model: 
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: selectedModel,
-                prompt: `${systemPrompt}\n\nUser: ${userPrompt}\n\nAssistant:`,
+                system: systemPrompt, // Use explicit system field
+                prompt: userPrompt,
+                images: images.length > 0 ? images : undefined,
                 stream: false,
                 format: jsonMode ? 'json' : undefined,
                 options: {
-                    temperature: 0.1 // Lowered to 0.1 for maximum determinism
+                    temperature: 0.1
                 }
             })
         });

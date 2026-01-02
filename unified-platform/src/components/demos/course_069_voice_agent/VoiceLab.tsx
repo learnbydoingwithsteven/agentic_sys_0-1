@@ -1,44 +1,124 @@
 'use client';
 
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import {
     Mic,
     MicOff,
     Volume2,
-    Activity
+    Activity,
+    Keyboard,
+    Loader2
 } from 'lucide-react';
-import { processVoiceInput, VoiceResponse } from '@/actions/course_069_voice_agent/voice_backend';
+import { processVoiceInput } from '@/actions/course_069_voice_agent/voice_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 export function VoiceLab() {
     const [state, setState] = useState<'IDLE' | 'LISTENING' | 'PROCESSING' | 'SPEAKING'>('IDLE');
     const [log, setLog] = useState<{ role: 'user' | 'agent', text: string }[]>([]);
+    const [useTextMode, setUseTextMode] = useState(false);
+    const [textInput, setTextInput] = useState("");
 
-    const handlePushToTalk = async () => {
-        if (state !== 'IDLE') return;
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
 
-        // 1. Listen
-        setState('LISTENING');
-        await new Promise(r => setTimeout(r, 2000)); // Fake recording time
+    // Audio Refs
+    const recognitionRef = useRef<any>(null);
 
-        // 2. Process
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+
+        // Init Speech Recognition
+        if (typeof window !== 'undefined') {
+            const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+            if (SpeechRecognition) {
+                const recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+
+                recognition.onstart = () => setState('LISTENING');
+                recognition.onend = () => {
+                    // If purely end without result, go IDLE. If result processing, it will handle state.
+                    if (state === 'LISTENING') setState('IDLE');
+                };
+
+                recognition.onresult = async (event: any) => {
+                    const transcript = event.results[0][0].transcript;
+                    await handleInteraction(transcript);
+                };
+
+                recognitionRef.current = recognition;
+            } else {
+                console.warn("Speech Recognition not supported");
+                setUseTextMode(true);
+            }
+        }
+    }, []);
+
+    const handleInteraction = async (input: string) => {
+        if (!input.trim() || !selectedModel) return;
+
         setState('PROCESSING');
-        const res = await processVoiceInput(true);
+        setLog(prev => [...prev, { role: 'user', text: input }]);
+        setTextInput("");
 
-        // 3. User Transcript
-        setLog(prev => [...prev, { role: 'user', text: res.transcript }]);
+        try {
+            const res = await processVoiceInput(input, selectedModel);
+            setLog(prev => [...prev, { role: 'agent', text: res.reply }]);
 
-        // 4. Speak
-        setState('SPEAKING');
-        await new Promise(r => setTimeout(r, 2500)); // Fake playback time
+            // Speak Response
+            if (window.speechSynthesis) {
+                setState('SPEAKING');
+                const utterance = new SpeechSynthesisUtterance(res.reply);
+                utterance.onend = () => setState('IDLE');
+                window.speechSynthesis.speak(utterance);
+            } else {
+                setState('IDLE');
+            }
 
-        // 5. Agent Reply
-        setLog(prev => [...prev, { role: 'agent', text: res.reply }]);
-        setState('IDLE');
+        } catch (e) {
+            console.error(e);
+            setState('IDLE');
+        }
+    };
+
+    const toggleMic = () => {
+        if (state === 'IDLE' && recognitionRef.current) {
+            try { recognitionRef.current.start(); } catch (e) { }
+        } else if (state === 'LISTENING' && recognitionRef.current) {
+            recognitionRef.current.stop();
+        } else if (state === 'SPEAKING') {
+            window.speechSynthesis.cancel();
+            setState('IDLE');
+        }
     };
 
     return (
-        <div className="flex flex-col gap-6 h-[700px]">
+        <div className="flex flex-col gap-6 h-[700px] relative">
+
+            {/* Top Bar */}
+            <div className="absolute top-4 right-4 z-20 flex gap-2">
+                <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className="bg-zinc-800 text-white px-3 py-1 rounded-full text-xs border border-zinc-700 outline-none cursor-pointer"
+                    disabled={state !== 'IDLE'}
+                >
+                    {models.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
+                <button
+                    onClick={() => setUseTextMode(!useTextMode)}
+                    className={`p-2 rounded-full ${useTextMode ? 'bg-indigo-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}
+                >
+                    <Keyboard className="w-4 h-4" />
+                </button>
+            </div>
+
             {/* Visualizer Area */}
             <div className="flex-1 bg-zinc-900 rounded-3xl p-8 border border-zinc-800 flex flex-col items-center justify-center relative overflow-hidden shadow-2xl">
 
@@ -57,22 +137,45 @@ export function VoiceLab() {
                 )}
 
                 {/* Central Button */}
-                <button
-                    onClick={handlePushToTalk}
-                    disabled={state !== 'IDLE'}
-                    className={`
-                        w-32 h-32 rounded-full flex items-center justify-center border-4 z-10 transition-all
-                        ${state === 'IDLE' ? 'bg-zinc-800 border-zinc-700 hover:scale-105 hover:bg-zinc-700 text-white' : ''}
-                        ${state === 'LISTENING' ? 'bg-rose-600 border-rose-400 scale-110 shadow-[0_0_30px_rgba(244,63,94,0.5)] text-white' : ''}
-                        ${state === 'PROCESSING' ? 'bg-amber-500 border-amber-300 animate-pulse text-white' : ''}
-                        ${state === 'SPEAKING' ? 'bg-cyan-600 border-cyan-400 scale-110 shadow-[0_0_30px_rgba(34,211,238,0.5)] text-white' : ''}
-                    `}
-                >
-                    {state === 'IDLE' && <Mic className="w-12 h-12" />}
-                    {state === 'LISTENING' && <MicOff className="w-12 h-12" />}
-                    {state === 'PROCESSING' && <Activity className="w-12 h-12 animate-spin" />}
-                    {state === 'SPEAKING' && <Volume2 className="w-12 h-12 animate-bounce" />}
-                </button>
+                {!useTextMode && (
+                    <button
+                        onClick={toggleMic}
+                        disabled={state === 'PROCESSING' || !recognitionRef.current}
+                        className={`
+                            w-32 h-32 rounded-full flex items-center justify-center border-4 z-10 transition-all
+                            ${state === 'IDLE' ? 'bg-zinc-800 border-zinc-700 hover:scale-105 hover:bg-zinc-700 text-white' : ''}
+                            ${state === 'LISTENING' ? 'bg-rose-600 border-rose-400 scale-110 shadow-[0_0_30px_rgba(244,63,94,0.5)] text-white' : ''}
+                            ${state === 'PROCESSING' ? 'bg-amber-500 border-amber-300 text-white' : ''}
+                            ${state === 'SPEAKING' ? 'bg-cyan-600 border-cyan-400 scale-110 shadow-[0_0_30px_rgba(34,211,238,0.5)] text-white' : ''}
+                        `}
+                    >
+                        {state === 'IDLE' && <Mic className="w-12 h-12" />}
+                        {state === 'LISTENING' && <MicOff className="w-12 h-12" />}
+                        {state === 'PROCESSING' && <Loader2 className="w-12 h-12 animate-spin" />}
+                        {state === 'SPEAKING' && <Volume2 className="w-12 h-12 animate-bounce" />}
+                    </button>
+                )}
+
+                {/* Text Mode Input */}
+                {useTextMode && (
+                    <div className="w-full max-w-md z-10 flex gap-2">
+                        <input
+                            value={textInput}
+                            onChange={(e) => setTextInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleInteraction(textInput)}
+                            placeholder="Type a message..."
+                            disabled={state !== 'IDLE'}
+                            className="flex-1 bg-zinc-800 border-zinc-700 text-white rounded-xl px-4 py-3 outline-none focus:border-indigo-500 transition-colors"
+                        />
+                        <button
+                            onClick={() => handleInteraction(textInput)}
+                            disabled={state !== 'IDLE' || !textInput}
+                            className="bg-indigo-600 text-white px-4 rounded-xl font-bold disabled:opacity-50"
+                        >
+                            Send
+                        </button>
+                    </div>
+                )}
 
                 <div className="mt-8 text-xl font-mono font-bold text-zinc-400 tracking-widest uppercase">
                     {state}
