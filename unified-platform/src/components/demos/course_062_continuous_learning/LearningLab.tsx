@@ -1,15 +1,17 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Bot,
     User,
     Sparkles,
     Trash2,
-    ThumbsDown
+    ThumbsDown,
+    Loader2
 } from 'lucide-react';
 import { askAgent, teachAgent, resetBrain } from '@/actions/course_062_continuous_learning/learning_backend';
+import { getAvailableModels } from '@/lib/llm_helper';
 
 interface Message {
     role: 'user' | 'agent';
@@ -22,9 +24,21 @@ export function LearningLab() {
     const [history, setHistory] = useState<Message[]>([]);
     const [isCorrectionMode, setIsCorrectionMode] = useState(false);
     const [correctionTarget, setCorrectionTarget] = useState(""); // The question being corrected
+    const [isThinking, setIsThinking] = useState(false);
+
+    // Model Selection
+    const [models, setModels] = useState<string[]>([]);
+    const [selectedModel, setSelectedModel] = useState<string>('');
+
+    useEffect(() => {
+        getAvailableModels().then(available => {
+            setModels(available);
+            if (available.length > 0) setSelectedModel(available[0]);
+        });
+    }, []);
 
     const handleSend = async () => {
-        if (!input) return;
+        if (!input || !selectedModel) return;
 
         // If in correction mode, we are sending the "Truth"
         if (isCorrectionMode) {
@@ -44,9 +58,14 @@ export function LearningLab() {
         const userMsg = input;
         setHistory(prev => [...prev, { role: 'user', text: userMsg }]);
         setInput("");
+        setIsThinking(true);
 
-        const res = await askAgent(userMsg);
-        setHistory(prev => [...prev, { role: 'agent', text: res.answer, isLearned: res.fromMemory }]);
+        try {
+            const res = await askAgent(userMsg, selectedModel);
+            setHistory(prev => [...prev, { role: 'agent', text: res.answer, isLearned: res.fromMemory }]);
+        } finally {
+            setIsThinking(false);
+        }
     };
 
     const handleReset = async () => {
@@ -69,9 +88,22 @@ export function LearningLab() {
                     <Sparkles className="w-5 h-5 text-yellow-500" />
                     Continuous Learning Module
                 </div>
-                <button onClick={handleReset} className="text-zinc-400 hover:text-red-500 transition-colors" title="Reset Memory">
-                    <Trash2 className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <select
+                        value={selectedModel}
+                        onChange={(e) => setSelectedModel(e.target.value)}
+                        className="bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 px-3 py-1.5 rounded-xl text-sm border border-zinc-200 dark:border-zinc-700 outline-none cursor-pointer"
+                        disabled={isThinking}
+                    >
+                        {models.length === 0 && <option value="">Loading...</option>}
+                        {models.map(m => (
+                            <option key={m} value={m}>{m}</option>
+                        ))}
+                    </select>
+                    <button onClick={handleReset} className="text-zinc-400 hover:text-red-500 transition-colors" title="Reset Memory">
+                        <Trash2 className="w-5 h-5" />
+                    </button>
+                </div>
             </div>
 
             {/* Chat Area */}
@@ -106,7 +138,7 @@ export function LearningLab() {
                                 </span>
                             )}
 
-                            {/* Correction Trigger (Use index maths to find the PREVIOUS user question) */}
+                            {/* Correction Trigger */}
                             {msg.role === 'agent' && !msg.isLearned && !msg.text.includes("Thank you") && i > 0 && history[i - 1].role === 'user' && !isCorrectionMode && (
                                 <button
                                     onClick={() => startCorrection(history[i - 1].text)}
@@ -141,15 +173,17 @@ export function LearningLab() {
                         onKeyDown={e => e.key === 'Enter' && handleSend()}
                         placeholder={isCorrectionMode ? "Enter the fact..." : "Ask a question..."}
                         className="flex-1 bg-transparent px-4 border-none outline-none text-zinc-800 dark:text-zinc-200 placeholder-zinc-400"
+                        disabled={isThinking}
                     />
                     <button
                         onClick={handleSend}
-                        disabled={!input}
+                        disabled={!input || isThinking || !selectedModel}
                         className={`
-                            px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 text-white
+                            px-6 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 text-white flex items-center gap-2
                             ${isCorrectionMode ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'}
                         `}
                     >
+                        {isThinking ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                         {isCorrectionMode ? 'Teach' : 'Send'}
                     </button>
                 </div>
