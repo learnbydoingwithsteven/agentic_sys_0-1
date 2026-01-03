@@ -1,28 +1,50 @@
 'use server';
 
-export async function generateToolCode(task: string): Promise<string> {
-    // Mock Agent generation based on task description
-    if (task.includes('area') && task.includes('circle')) {
-        return `function calculateCircleArea(radius) {\n  return Math.PI * radius * radius;\n}`;
+import { queryLLM, extractJSON } from '@/lib/llm_helper';
+
+export async function generateToolCode(task: string, modelName: string = 'auto'): Promise<string> {
+    const prompt = `You are a Tool Smith Agent.
+    User Task: "${task}"
+    
+    Objective: Write a single Javascript function that solves this specific task.
+    - The function should take a single argument 'input' (which might be a number or string).
+    - It must return the result.
+    - Do not use external libraries.
+    - Output ONLY the function code.
+    
+    Example:
+    Task: "Square a number"
+    Return JSON: { "code": "function square(input) { return input * input; }" }`;
+
+    try {
+        const raw = await queryLLM(prompt, "Generate JS Code", modelName, true);
+        const res = await extractJSON(raw);
+        return res.code || "// Error generating code";
+    } catch (e) {
+        return `function error() { return "Generation failed"; }`;
     }
-    if (task.includes('fibonacci')) {
-        return `function fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}`;
-    }
-    return `function unknownTask() {\n  return "I do not know how to do that yet.";\n}`;
 }
 
-export async function runGeneratedTool(code: string, input: number): Promise<string | number> {
-    // Dangerous in prod, but fine for mock/demo with restricted inputs
-    // We will simulate execution rather than eval() for safety in this mock backend
+export async function runGeneratedTool(code: string, input: any): Promise<any> {
+    // SECURITY WARNING: Executing arbitrary code from LLM is risky.
+    // In a real production system, use a sandboxed VM (e.g. 'vm2' or distinct container).
+    // For this local educational demo, we use 'new Function' carefully.
 
-    if (code.includes('Math.PI')) {
-        return Math.PI * input * input;
-    }
-    if (code.includes('fibonacci')) {
-        // approximate fib for demo
-        const fib = (n: number): number => n <= 1 ? n : fib(n - 1) + fib(n - 2);
-        return fib(Math.min(input, 10)); // cap recursion
-    }
+    try {
+        // We wrap the code to ensure it returns the function, then we call it.
+        // Assumes 'code' is "function name(input) { ... }"
 
-    return "No execution logic found for this mock.";
+        // Hacky way to extract function name or just convert to anonymous
+        // Let's force it to be an anonymous function expression if possible
+        const wrappedCode = `
+            const userFunc = ${code.replace(/function\s+\w+/, 'function')};
+            return userFunc(arg);
+        `;
+
+        const run = new Function('arg', wrappedCode);
+        const result = run(input);
+        return result;
+    } catch (e: any) {
+        return `Runtime Error: ${e.message}`;
+    }
 }
